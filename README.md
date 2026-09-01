@@ -25,12 +25,12 @@ The toolchains for cmake as well as the automake and autoconf dependencies are r
 
 Libraries needed are:
 
-CURL::libcurl
-OpenSSL::Crypto 
-ZLIB::ZLIB
-BZip2::BZip2
-LibLZMA::LibLZMA
-pthread
+- CURL::libcurl
+- OpenSSL::Crypto 
+- ZLIB::ZLIB
+- BZip2::BZip2
+- LibLZMA::LibLZMA
+- pthread
 
 htslib is automatically cloned and compiled statically during the build process and statically linked into the corset binary.
 
