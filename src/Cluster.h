@@ -32,7 +32,7 @@
 #include <map>
 #include <climits>
 #include <Read.h>
-
+#include <cstdint>
 using namespace std;
 
 typedef vector < vector < int > > group;

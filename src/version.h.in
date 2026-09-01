@@ -1,0 +1,10 @@
+#ifndef VERSION_H
+#define VERSION_H
+
+// These tokens will be automatically replaced by CMake at build time
+#define CORSET_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define CORSET_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define CORSET_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define CORSET_VERSION_STRING "@PROJECT_VERSION@"
+
+#endif // VERSION_H

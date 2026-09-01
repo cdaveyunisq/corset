@@ -21,6 +21,7 @@
 #include <sstream>
 #include <map>
 #include <stdlib.h>
+#include "version.h"
 
 using namespace std;
 
@@ -29,6 +30,7 @@ using namespace std;
 void print_usage(){
   cout << endl;
   cout << "corset_fasta_ID_changer modifies a fasta file by prefixing each contig ID with its associated cluster ID" << endl;
+  cout << "version: " << CORSET_VERSION_STRING << endl;
   cout << endl;
   cout << "Usage: corset_fasta_ID_changer <cluster file> <fasta file>  >  <out file>" << endl;
   cout << "         <cluster file> - Needs to be a table with two columns: contig ID and cluster ID." << endl;
