@@ -10,6 +10,22 @@ project(corset LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+endif()
+
+# Optional: add custom debug flags
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+    if(MSVC)
+        add_compile_options(/Zi /Od)
+    else()
+        add_compile_options(-g -O0 -Wall -Wextra -gz=none )
+    endif()
+endif()
+
+add_compile_options(-fsanitize=address)
+
+
 # ---------------------------------------------------------------------------
 # Configure the version header file
 # ---------------------------------------------------------------------------

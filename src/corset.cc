@@ -733,6 +733,8 @@ int main(int argc, char **argv)
   TranscriptList *tList = new TranscriptList;
   vector<ReadList *> rList; // one ReadList per sample
 
+  // TODO: files can be read in parallel and data merged after reading.
+  // TODO: There are two data structures being modified - rList and tList - need to determine how results can be merged in these data structures.
   for (int bam_file = 0; bam_file < smpls; bam_file++)
   {
     rList.push_back(read_input(string(argv[params + bam_file]), tList, bam_file));
@@ -780,6 +782,10 @@ int main(int argc, char **argv)
 
   // Now the reads are parsed and the clustering and counting is performed.
   //   ProfilerStart("gprof.prof");
+  // TODO: The make clusters constructor triggers the clustering on the rList.
+  // Need to investigate how to parallelise rList based on parallel reads.
+  // process may need to incorporate reads from a subset and clustering on that subset.
+  // then have a separate step to combine clusters.
   MakeClusters cList(rList, distance_thresholds, groups);
   //  ProfilerStop();
 

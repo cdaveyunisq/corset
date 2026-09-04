@@ -1,0 +1,47 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CMake C++ Debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/opt/sw/gdb/gdb-13.1-vuh/bin/gdb", // Explicitly point to the system GDB
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+
+        // /home/u8021508/corset-1.09-linux64/corset -f true -p Cx_sitiens U10.k10.sorted.bam U1.k10.sorted.bam U2.k10.sorted.bam U3.k10.sorted.bam U4.k10.sorted.bam U5.k10.sorted.bam U8.k10.sorted.bam U9.k10.sorted.bam W10.k10.sorted.bam W1.k10.sorted.bam W2.k10.sorted.bam W3.k10.sorted.bam W4.k10.sorted.bam W5.k10.sorted.bam W6.k10.sorted.bam W7.k10.sorted.bam W8.k10.sorted.bam W9.k10.sorted.bam
+        {
+            "name": "Debug BAM",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": ["-f", "true", "-p", "examples/Cx_sitiens", "examples/Cx_sitiens_mosquitoes/W6.sorted.bam"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/opt/sw/gdb/gdb-13.1-vuh/bin/gdb", // Explicitly point to the system GDB
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+    ]
+}
