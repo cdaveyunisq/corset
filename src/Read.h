@@ -24,6 +24,7 @@
 #include <iostream>
 #include <Transcript.h>
 #include <cstdint>
+
 using namespace std;
 
 // Read is a basic container object for a read. It can record the read ID,

@@ -19,11 +19,12 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
     if(MSVC)
         add_compile_options(/Zi /Od)
     else()
+    # (-fsanitize=address 
         add_compile_options(-g -O0 -Wall -Wextra -gz=none )
     endif()
 endif()
 
-add_compile_options(-fsanitize=address)
+
 
 
 # ---------------------------------------------------------------------------
