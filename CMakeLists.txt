@@ -48,6 +48,21 @@ find_package(BZip2 REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(CURL REQUIRED) 
 find_package(OpenSSL REQUIRED)
+find_package(libdeflate REQUIRED)
+
+# First attempt: Try to find a modern system-provided CMake configuration module
+find_package(libdeflate CONFIG QUIET)
+
+# Second attempt: If the native module is absent, build it out using PkgConfig
+if(NOT TARGET libdeflate::libdeflate)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(DEFLATE REQUIRED IMPORTED_TARGET GLOBAL libdeflate)
+
+    # Bridge the PkgConfig mapping to match the missing target name
+    add_library(libdeflate::libdeflate INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(libdeflate::libdeflate INTERFACE PkgConfig::DEFLATE)
+endif()
+
 
 # 2. Path Directives
 set(DEPS_DIR "${CMAKE_BINARY_DIR}/thirdparty")
@@ -67,7 +82,8 @@ ExternalProject_Add(htslib_git_target
     PREFIX              "${DEPS_DIR}/htslib"
    
     # FIX: Native list-wrapping forces the host shell to correctly execute the processing pipeline
-    CONFIGURE_COMMAND   /bin/sh -c "autoheader && autoconf && ./configure --prefix=${INSTALL_PREFIX} --disable-plugins"
+    #CONFIGURE_COMMAND   /bin/sh -c "autoheader && autoconf && ./configure --prefix=${INSTALL_PREFIX} --disable-plugins"
+    CONFIGURE_COMMAND   /bin/sh -c "autoreconf -i && ./configure --prefix=${INSTALL_PREFIX} --disable-plugins"
     
     BUILD_COMMAND       make lib-static
     INSTALL_COMMAND     make install
@@ -119,6 +135,7 @@ target_link_libraries(corset PRIVATE
     ZLIB::ZLIB
     BZip2::BZip2
     LibLZMA::LibLZMA
+    libdeflate::libdeflate
     pthread
 )
 
