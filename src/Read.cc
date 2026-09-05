@@ -6,7 +6,7 @@
 
 #include <Read.h>
 
-bool Read::has_same_alignments(Read *r)
+bool Read::has_same_alignments(const std::shared_ptr<Read> &r)
 {
 
   if (r->get_trans_hash() != get_trans_hash())
@@ -61,6 +61,7 @@ void ReadList::compactify_reads(TranscriptList *trans, string outputReadsName)
   // first lets sort the alignments for each read
   // and calculate a hash value to be used when comparing alignments
   StringSet<Read>::iterator itr = reads_map->begin();
+  // TODO: is it possible parallise thi
   for (; itr != reads_map->end(); itr++)
   {
     itr->second->sort_alignments();

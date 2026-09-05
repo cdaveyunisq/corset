@@ -26,6 +26,7 @@
 
 #include <string>
 #include <cstdlib>
+#include <memory>
 
 #ifndef UNORDEREDMAP
 #include <map>
@@ -38,9 +39,9 @@ using namespace std;
 template <class T > class StringSet {
   
 #ifndef UNORDEREDMAP
-  typedef map< string, T * > mymap;
+  typedef map< string, std::shared_ptr<T> > mymap;
 #else
-  typedef unordered_map< string, T * > mymap;
+  typedef unordered_map< string, std::shared_ptr<T> > mymap;
 #endif
 
  private:
@@ -54,7 +55,7 @@ template <class T > class StringSet {
       For example use the read ID to get a Read * or a 
       transcript ID to get a Transcript *.
    **/
-  T * find(string & name){
+  std::shared_ptr<T> find(string & name){
     iterator it;
     it = set_map.find(name);
     if(it!=set_map.end())
@@ -67,12 +68,12 @@ template <class T > class StringSet {
       already exisits and if it does, just return the already exisiting
       object pointer.
    **/
-  T * insert(string name){
-    T * look_up = find(name); 
+  std::shared_ptr<T> insert(string name){
+    std::shared_ptr<T> look_up = find(name);
     if(look_up!=NULL)
       return look_up;
     else{
-      T * pt = new T(name);
+      std::shared_ptr<T> pt = std::make_shared<T>(name);
       set_map[name]=pt;
       return pt;
     }

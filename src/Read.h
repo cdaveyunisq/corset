@@ -23,117 +23,175 @@
 #include <fstream>
 #include <iostream>
 #include <Transcript.h>
+#include <memory>
 #include <cstdint>
+#include <atomic>
+#include <limits>
 
 using namespace std;
 
 // Read is a basic container object for a read. It can record the read ID,
 // all the transcript alignments for that read and which sample the read belongs to.
-class Read
-{
-  vector<Transcript *> alignments_;
-  unsigned char sample_;
-  int weight_;
-  uintptr_t trans_hash;
-
+class Read {
 public:
-  Read() { weight_ = 1; };
-  Read(string name) { weight_ = 1; }; // dummy for StringSet
-  void set_sample(int sample) { sample_ = sample; };
-  int get_sample() { return sample_; };
-  int alignments() { return alignments_.size(); };
-  void set_weight(int weight) { weight_ = weight; };
-  int get_weight() { return weight_; };
-  void add_alignment(Transcript *trans)
-  {
-    alignments_.push_back(trans);
-    trans->add_read(this);
-  };
+    Read() : id(next_id) {
+        if (next_id >= MAX_ID) {
+            throw std::runtime_error("Maximum number of reads reached");
+        }
+        ++next_id;
+        weight_ = 1;
+    };
 
-  vector<Transcript *>::iterator align_begin() { return alignments_.begin(); };
-  vector<Transcript *>::iterator align_end() { return alignments_.end(); };
+    Read(string name) : id(next_id) {
+        if (next_id >= MAX_ID) {
+            throw std::runtime_error("Maximum number of reads reached");
+        }
+        ++next_id;
+        weight_ = 1;
+    };
 
-  void sort_alignments() { sort(alignments_.begin(), alignments_.end()); };
-
-  // function to check whether an alignment has already been recorded.
-  bool has(Transcript *t) { return (find(align_begin(), align_end(), t) != align_end()); };
-
-  void remove(Transcript *trans) { alignments_.erase(find(align_begin(), align_end(), trans)); };
-
-  // check if two reads align to all the same transcripts
-  // this assumed that "sort_alignments" has been called first.
-  // it is used in ReadList::compactify_reads
-  bool has_same_alignments(Read *r);
-
-  // return the hashed values of all transcript pointers that this read aligns to
-  // used to quickly compare alignments in the compactify_reads function
-  uintptr_t get_trans_hash()
-  {
-    return trans_hash;
-  }
-
-  // sets the hashed values of all transcript pointers that this read aligns to using xor
-  // used to quickly compare alignments in the compactify_reads function
-  uintptr_t set_trans_hash()
-  {
-    trans_hash = 0;
-    if (alignments_.size() > 0)
-    {
-      for (auto t_itr = alignments_.begin(); t_itr != alignments_.end(); t_itr++)
-      {
-        // this has function was derived from boost::hash_combine()
-        trans_hash ^= hash<uintptr_t>()((uintptr_t)(*t_itr)) + 0x9e3779b9 + (trans_hash << 6) + (trans_hash >> 2);
-      }
+    Read(const Read& other) : id(other.id),
+        weight_(other.weight_),
+        sample_(other.sample_),
+        transcriptIds_(other.transcriptIds_) {
+        if (id >= MAX_ID) {
+            throw std::runtime_error("Maximum read ID limit reached during copy.");
+        }
+        set_trans_hash();
     }
-    return trans_hash;
-  }
 
-  void print_alignments()
-  {
-    if (alignments_.size() > 0)
-    {
-      for (auto t_itr = alignments_.begin(); t_itr != alignments_.end(); t_itr++)
-      {
-        cout << (*t_itr)->get_name() << " ";
-      }
+
+    // dummy for StringSet
+    void set_sample(int sample) { sample_ = sample; };
+    int get_sample() { return sample_; };
+    int alignments() { return transcriptIds_.size(); };
+    void set_weight(int weight) { weight_ = weight; };
+    int get_weight() { return weight_; };
+
+    void add_alignment(const std::shared_ptr<Transcript> &trans) {
+        transcriptIds_.push_back(trans->get_name());
+        trans->add_read(this);
+    };
+
+    vector<std::string>::iterator align_begin() { return transcriptIds_.begin(); };
+    vector<std::string>::iterator align_end() { return transcriptIds_.end(); };
+
+    void sort_alignments() { sort(transcriptIds_.begin(), transcriptIds_.end()); };
+
+    // function to check whether an alignment has already been recorded.
+    bool has(const std::shared_ptr<Transcript> &t) {
+        return (find(align_begin(), align_end(), t->get_name()) != align_end());
+    };
+
+    bool has(const std::string &name) {
+        return (find(align_begin(), align_end(), name) != align_end());
     }
-    cout << endl;
-  }
+
+    void remove(const std::shared_ptr<Transcript> &trans) {
+        transcriptIds_.erase(find(align_begin(), align_end(), trans->get_name()));
+    };
+
+
+    void remove(const std::string &name) {
+        transcriptIds_.erase(find(align_begin(), align_end(), name));
+    };
+
+
+    // check if two reads align to all the same transcripts
+    // this assumed that "sort_alignments" has been called first.
+    // it is used in ReadList::compactify_reads
+    bool has_same_alignments(const std::shared_ptr<Read> &r);
+
+    // return the hashed values of all transcript pointers that this read aligns to
+    // used to quickly compare alignments in the compactify_reads function
+    uintptr_t get_trans_hash() {
+        return trans_hash;
+    }
+
+    // sets the hashed values of all transcript pointers that this read aligns to using xor
+    // used to quickly compare alignments in the compactify_reads function
+    uintptr_t set_trans_hash() {
+        trans_hash = 0;
+        if (transcriptIds_.size() > 0) {
+            for (auto t_itr = transcriptIds_.begin(); t_itr != transcriptIds_.end(); t_itr++) {
+                // this has function was derived from boost::hash_combine()
+                std::size_t name_hash = std::hash<std::string>{}(*t_itr);
+                trans_hash ^= hash<uintptr_t>()(name_hash + 0x9e3779b9 + (trans_hash << 6) + (
+                                                    trans_hash >> 2));
+            }
+        }
+        return trans_hash;
+    }
+
+
+    void print_alignments() {
+        if (transcriptIds_.size() > 0) {
+            for (auto t_itr = transcriptIds_.begin(); t_itr != transcriptIds_.end(); t_itr++) {
+                cout << *t_itr << " ";
+            }
+        }
+        cout << endl;
+    }
+
+    int64_t getId() {
+        return id;
+    }
+
+    Read& operator=(const Read& other) {
+        if (this != &other) {
+            id = other.id;
+            transcriptIds_ = other.transcriptIds_;
+            weight_ = other.weight_;
+            sample_ = other.sample_;
+            set_trans_hash();
+        }
+        return *this;
+    }
+
+private:
+    vector<std::string> transcriptIds_;
+    unsigned char sample_;
+    int weight_;
+    uintptr_t trans_hash;
+    static constexpr int64_t MAX_ID = std::numeric_limits<int64_t>::max();
+
+    static std::atomic<int64_t> next_id;
+    int64_t id;
 };
 
 // ReadList is a container for a set of Reads and contains functions for
 // inserting and accessing reads.
-class ReadList
-{
+class ReadList {
 private:
-  TranscriptList *transcript_list;
-  StringSet<Read> *reads_map; // warning this is deleted after the reads are read
-  vector<Read *> reads_vector;
+    std::shared_ptr<TranscriptList> transcript_list{};
+    std::shared_ptr<StringSet<Read> > reads_map{}; // warning this is deleted after the reads are read
+    vector<std::shared_ptr<Read> > reads_vector{};
 
 public:
-  // we need to know all the transcripts before we can build a ReadList.
-  ReadList(TranscriptList *transcripts)
-  {
-    transcript_list = transcripts;
-    reads_map = new StringSet<Read>;
-  };
+    // we need to know all the transcripts before we can build a ReadList.
+    ReadList(const std::shared_ptr<TranscriptList> &transcripts) {
+        transcript_list = transcripts;
+        reads_map = std::make_shared<StringSet<Read> >();
+        reads_vector = std::vector<std::shared_ptr<Read> >{};
+    };
 
-  // add a new alignment into the list
-  // this one is used when reading bam files
-  void add_alignment(string read, string trans, int sample);
-  // this one is used when reading corset read summary files
-  void add_alignment(vector<string> trans, int sample, int weight);
+    // add a new alignment into the list
+    // this one is used when reading bam files
+    void add_alignment(string read, string trans, int sample);
 
-  // saves memory by reducing each read into a set of
-  //"compact reads" with a weight.
-  // Also the map object is clear and the reads are
-  // stored as a vector instead. Read IDs are cleared.
-  void compactify_reads(TranscriptList *trans, string outputReadsName = "");
+    // this one is used when reading corset read summary files
+    void add_alignment(vector<string> trans, int sample, int weight);
 
-  vector<Read *>::iterator begin() { return reads_vector.begin(); };
-  vector<Read *>::iterator end() { return reads_vector.end(); };
+    // saves memory by reducing each read into a set of
+    //"compact reads" with a weight.
+    // Also the map object is clear and the reads are
+    // stored as a vector instead. Read IDs are cleared.
+    void compactify_reads(TranscriptList *trans, string outputReadsName = "");
 
-  void write(string outputReadsName);
+    vector<std::shared_ptr<Read> >::iterator begin() { return reads_vector.begin(); };
+    vector<std::shared_ptr<Read> >::iterator end() { return reads_vector.end(); };
+
+    void write(string outputReadsName);
 };
 
 #endif
