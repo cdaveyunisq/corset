@@ -68,9 +68,11 @@ endif()
 set(DEPS_DIR "${CMAKE_BINARY_DIR}/thirdparty")
 set(INSTALL_PREFIX "${DEPS_DIR}/install")
 
+# Force-create these during the CONFIGURATION phase.
+# This stops CLion from throwing directory-not-found errors before the first build.
 file(MAKE_DIRECTORY "${INSTALL_PREFIX}/include")
+file(MAKE_DIRECTORY "${INSTALL_PREFIX}/include/htslib")
 file(MAKE_DIRECTORY "${INSTALL_PREFIX}/lib")
-
 # ---------------------------------------------------------------------------
 # 3. External Git Project Declarations (Tag 1.24)
 # ---------------------------------------------------------------------------
@@ -92,6 +94,9 @@ ExternalProject_Add(htslib_git_target
     LOG_DOWNLOAD        1
     LOG_CONFIGURE       1 # Enable configuration logs to trace errors easily
     LOG_BUILD           1
+
+    # CLION NINJA FIX: Tell the Ninja generator exactly what this step produces
+    BUILD_BYPRODUCTS    "${HTSLIB_STATIC_LIB}"
 )
 
 
