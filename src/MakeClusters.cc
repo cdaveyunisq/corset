@@ -16,14 +16,14 @@ using namespace std;
 shared_ptr<pair<shared_ptr<Transcript> const, shared_ptr<Cluster> > > MakeClusters::getMapElement(
     shared_ptr<Transcript> trans) {
     //  StringSet<Cluster>::iterator it=transMap.find(trans);
-    map<shared_ptr<Transcript>, shared_ptr<Cluster> >::iterator it = transMap.find(trans);
+    auto it = transMap.find(trans);
     if (it != transMap.end())
         return make_shared<pair<shared_ptr<Transcript> const, shared_ptr<Cluster> > >(*it);
     shared_ptr<Cluster> clust = make_shared<Cluster>();
     clust->add_tran(trans);
     clusterList.push_back(clust);
 
-    pair<map<shared_ptr<Transcript> const, shared_ptr<Cluster> >::iterator, bool> newTrans = transMap.insert(
+    auto newTrans = transMap.insert(
         pair<shared_ptr<Transcript> const, shared_ptr<Cluster> >(trans, clust));
     return make_shared<pair<shared_ptr<Transcript> const, shared_ptr<Cluster> > >(*newTrans.first);
 };
