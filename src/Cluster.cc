@@ -14,6 +14,7 @@ using namespace std;
 //can be set by user (see corset.cc)
 float Cluster::D_cut = 0;
 string Cluster::file_prefix = "";
+std::mutex Cluster::output_mutex {};
 
 //constants
 const string Cluster::file_counts = "counts";
@@ -311,6 +312,10 @@ void Cluster::output_clusters(string threshold) {
     vector<vector<int> > counts;
     for (int s = 0; s < Transcript::samples; s++)
         counts.push_back(get_counts(s));
+
+    // serialise all file appends across threads
+    // mutex is release automatically once loc
+    std::lock_guard<std::mutex> lock(output_mutex);
 
     ofstream countsFile;
     countsFile.open((file_prefix + string(file_counts + threshold + file_ext)).c_str(), ios_base::app);

@@ -17,9 +17,8 @@ bool Read::has_same_alignments(const std::shared_ptr<Read> &r) {
 void ReadList::add_alignment(string read, string trans, int sample) {
     // find the transcript id if it already exists:
     shared_ptr<Read> r = reads_map->insert(read);
-    if (find(read_ids.begin(), read_ids.end(), r->getId()) == read_ids.end()) {
-        read_ids.push_back(r->getId());
-    }
+    read_ids.push_back(r->getId());
+
     if (!read_id_map.contains(r->getId())) {
         read_id_map.insert(std::make_pair(r->getId(), r));
     }
@@ -37,7 +36,9 @@ void ReadList::add_alignment(string read, string trans, int sample) {
 void ReadList::add_alignment(vector<string> trans_names, int sample, int weight) {
     // make the new read
     shared_ptr<Read> r = make_shared<Read>();
-    reads_vector.push_back(r);
+    reads_vector.push_back(move(r));
+    r = reads_vector.back();
+
     r->set_sample(sample);
     r->set_weight(weight); // this read represents mutliple reads in the original bam
     if (find(read_ids.begin(), read_ids.end(), r->getId()) == read_ids.end()) {
@@ -166,4 +167,10 @@ shared_ptr<Transcript> ReadList::getTranscript(string name) {
         return transcript_list->get_map()[name];
     }
     return nullptr;
+}
+
+// Re-point this ReadList to a merged TranscriptList after parallel reading.
+// Must be called before any downstream use when using parallel file loading.
+void ReadList::rebind_transcript_list(const shared_ptr<TranscriptList> &merged) {
+    transcript_list = merged;
 }

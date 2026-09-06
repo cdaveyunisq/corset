@@ -46,7 +46,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
-
+#include <thread>
+#include <future>
 #include <htslib/sam.h>
 // #include <bam.h>
 
@@ -80,6 +81,12 @@ shared_ptr<ReadList> read_bam_file(string all_file_names, const shared_ptr<Trans
             std::cerr << "fail to open " << filename << " for reading." << std::endl;
             exit(1);
         }
+        // Give HTSlib background threads for BGZF block decompression.
+        // Reserve 1 core for the main reading loop; use at least 1 bg thread.
+        const unsigned int hw_threads = std::thread::hardware_concurrency();
+        const int bg_threads = (hw_threads > 1) ? static_cast<int>(hw_threads - 1) : 1;
+        hts_set_threads(in, bg_threads);
+
         bam1_t *b = bam_init1();
         int r;
         int i = 0;
@@ -119,7 +126,7 @@ shared_ptr<ReadList> read_bam_file(string all_file_names, const shared_ptr<Trans
 }
 
 // a function to parse a fasta file and k-mers to cluster
-shared_ptr<ReadList> read_fasta_file(string all_file_names, const shared_ptr<TranscriptList>& trans, int sample) {
+shared_ptr<ReadList> read_fasta_file(string all_file_names, const shared_ptr<TranscriptList> &trans, int sample) {
     shared_ptr<ReadList> rList = make_shared<ReadList>(trans);
     string filename;
     stringstream ss(all_file_names);
@@ -175,7 +182,7 @@ shared_ptr<ReadList> read_fasta_file(string all_file_names, const shared_ptr<Tra
 
 /** Code to add an EC into the readList. This code is common to corset and
     salmon EC file parsing **/
-int add_equivalence_class(const shared_ptr<ReadList>& rList, int &sample, vector<string> &transNames, int &weight) {
+int add_equivalence_class(const shared_ptr<ReadList> &rList, int &sample, vector<string> &transNames, int &weight) {
     // case that the number of reads is smaller than threshold for a link b/n transcripts
     if (weight < Transcript::min_reads_for_link) {
         shuffle(transNames.begin(), transNames.end(), default_random_engine());
@@ -196,7 +203,7 @@ int add_equivalence_class(const shared_ptr<ReadList>& rList, int &sample, vector
 }
 
 /** Process a corset format equivalence class file **/
-shared_ptr<ReadList> read_corset_file(string all_file_names, const shared_ptr<TranscriptList>& trans, int sample) {
+shared_ptr<ReadList> read_corset_file(string all_file_names, const shared_ptr<TranscriptList> &trans, int sample) {
     shared_ptr<ReadList> rList = make_shared<ReadList>(trans);
     string filename;
     stringstream ss(all_file_names);
@@ -248,7 +255,8 @@ shared_ptr<ReadList> read_corset_file(string all_file_names, const shared_ptr<Tr
 
 // Process a salom equivalence class file
 // This has the same information as a corset-reads file
-shared_ptr<ReadList> read_salmon_eq_classes_file(string all_file_names, const shared_ptr<TranscriptList>& trans, int sample) {
+shared_ptr<ReadList> read_salmon_eq_classes_file(string all_file_names, const shared_ptr<TranscriptList> &trans,
+                                                 int sample) {
     shared_ptr<ReadList> rList = make_shared<ReadList>(trans);
     string filename;
     stringstream ss(all_file_names);
@@ -446,7 +454,7 @@ int main(int argc, char **argv) {
     string input_type = "bam";
 
     // function pointer to the method to read the bam or corset input files
-    shared_ptr<ReadList> (*read_input)(string, const shared_ptr<TranscriptList>&, int) = read_bam_file;
+    shared_ptr<ReadList> (*read_input)(string, const shared_ptr<TranscriptList> &, int) = read_bam_file;
 
     std::cout << std::endl;
     std::cout << "Running Corset Version " << CORSET_VERSION_STRING << std::endl;
@@ -695,21 +703,58 @@ int main(int argc, char **argv) {
     Transcript::samples = smpls;
     // set-up out data structures ready to receive the alignment information
     shared_ptr<TranscriptList> tList = make_shared<TranscriptList>();
-    vector<shared_ptr<ReadList>> rList {}; // one ReadList per sample
-    vector<int64_t> all_read_ids {};
+    vector<shared_ptr<ReadList> > rList{}; // one ReadList per sample
     // a map to access relationship between read id and read list.
-    map<int64_t, shared_ptr<ReadList>> read_list_map {};
-    // TODO: files can be read in parallel and data merged after reading.
-    // TODO: There are two data structures being modified - rList and tList - need to determine how results can be merged in these data structures.
+    map<int64_t, shared_ptr<ReadList> > read_list_map{};
+
+    // ---------------------------------------------------------------------------
+    // (parallel): read each input file into its own private TranscriptList
+    // and ReadList. No shared state between threads — no locks needed.
+    // ---------------------------------------------------------------------------
+    using ReadResult = pair<shared_ptr<TranscriptList>, shared_ptr<ReadList> >;
+    vector<future<ReadResult> > futures;
+    futures.reserve(smpls);
+
     for (int bam_file = 0; bam_file < smpls; bam_file++) {
-        shared_ptr<ReadList> readList = read_input(string(argv[params + bam_file]), tList, bam_file);
-        rList.push_back(readList);
-        // need to backreference read list containing ids
-        for (auto idItr = readList->getReadIds().begin(); idItr != readList->getReadIds().end(); idItr++) {
+        string file_arg = string(argv[params + bam_file]);
+        futures.push_back(std::async(std::launch::async, [=]() -> ReadResult {
+            // Each thread owns its own TranscriptList — no sharing, no locks.
+            shared_ptr<TranscriptList> privateTrans = make_shared<TranscriptList>();
+            shared_ptr<ReadList> readList = read_input(file_arg, privateTrans, bam_file);
+            return {privateTrans, readList};
+        }));
+    }
+
+    // ---------------------------------------------------------------------------
+    // Phase 2 (serial): collect futures, merge all private TranscriptLists into
+    // tList, rebind each ReadList to the unified tList, then build read_list_map.
+    // ---------------------------------------------------------------------------
+    rList.resize(smpls);
+    vector<shared_ptr<TranscriptList> > privateTransLists(smpls);
+
+    for (int bam_file = 0; bam_file < smpls; bam_file++) {
+        auto [privateTrans, readList] = futures[bam_file].get();
+        privateTransLists[bam_file] = privateTrans;
+        rList[bam_file] = readList;
+    }
+
+    // Merge transcript names from all private lists into the single shared tList.
+    for (auto &privateTrans: privateTransLists) {
+        for (auto it = privateTrans->begin(); it != privateTrans->end(); ++it) {
+            tList->insert(it->first); // no-op if name already present
+        }
+    }
+    // Rebind each ReadList to the unified tList and populate read_list_map.
+    for (int bam_file = 0; bam_file < smpls; bam_file++) {
+        rList[bam_file]->rebind_transcript_list(tList);
+
+        for (auto idItr = rList[bam_file]->getReadIds().begin();
+             idItr != rList[bam_file]->getReadIds().end(); ++idItr) {
             if (!read_list_map.contains(*idItr)) {
-                read_list_map.insert(make_pair(*idItr, readList));
+                read_list_map.insert(make_pair(*idItr, rList[bam_file]));
             }
         }
+
         // This is where we output the read alignment summary file for future runs of corset
         if (output_reads) {
             string bam_filename = string(argv[params + bam_file]);
@@ -728,7 +773,7 @@ int main(int argc, char **argv) {
     for (auto it = tList->begin(); it != tList->end(); it++) {
         // extract the reads for this transcript.
         vector<int64_t> read_ids = it->second->get_reads();
-        vector<shared_ptr<Read>> read_ref {};
+        vector<shared_ptr<Read> > read_ref{};
         for (auto idItr = read_ids.begin(); idItr != read_ids.end(); idItr++) {
             if (read_list_map.contains(*idItr)) {
                 read_ref.push_back(read_list_map.at(*idItr)->getRead(*idItr));

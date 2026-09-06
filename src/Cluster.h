@@ -33,6 +33,8 @@
 #include <climits>
 #include <Read.h>
 #include <cstdint>
+#include <mutex>
+
 using namespace std;
 
 typedef vector<vector<int> > group;
@@ -185,6 +187,10 @@ public: //basic getter/setter functions
     const static string cluster_id_prefix;
     const static string cluster_id_joiner;
     const static string cluster_id_prefix_no_reads;
+
+    // Protects concurrent appends to the shared output files during
+    // parallel processSuperClusters.
+    static std::mutex output_mutex;
 
     void print_alignments();
 };

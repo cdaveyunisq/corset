@@ -214,6 +214,10 @@ public:
     shared_ptr<Read> getRead(int64_t id);
 
     shared_ptr<Transcript> getTranscript(string name);
+
+    // Re-point this ReadList to a merged TranscriptList after parallel reading.
+    // Must be called before any downstream use when using parallel file loading.
+    void rebind_transcript_list(const shared_ptr<TranscriptList> &merged);
 };
 
 #endif
