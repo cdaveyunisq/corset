@@ -85,8 +85,10 @@ public:
         trans->add_read(make_shared<Read>(*this));
     };
 
+    const vector<string>& getAlignments() const { return transcriptIds_; }
+
     vector<std::string>::iterator align_begin() { return transcriptIds_.begin(); };
-    vector<std::string>::iterator align_end() { return transcriptIds_.end(); };
+    vector<std::string>::iterator align_end()  { return transcriptIds_.end(); };
 
     void sort_alignments() { sort(transcriptIds_.begin(), transcriptIds_.end()); };
 
@@ -253,9 +255,16 @@ public:
     // stored as a vector instead. Read IDs are cleared.
     void compactify_reads(shared_ptr<TranscriptList> trans, string outputReadsName = "");
 
-    const vector<std::shared_ptr<Read> > getReads() const {
+    const vector<std::shared_ptr<Read> >& getReads() const {
         return reads_vector;
     }
+
+    // Returns a const reference to the underlying transcript name->ptr map.
+    // Used by MakeClusters DSU phase to build the per-sample transcript cache.
+    const auto& get_transcript_map() const {
+        return transcript_list->get_map();
+    }
+
 
     vector<std::shared_ptr<Read> >::iterator begin() { return reads_vector.begin(); };
     vector<std::shared_ptr<Read> >::iterator end() { return reads_vector.end(); };

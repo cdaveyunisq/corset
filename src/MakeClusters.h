@@ -19,6 +19,44 @@
 
 using namespace std;
 
+// ---------------------------------------------------------------------------
+// Disjoint Set Union (Union-Find) over Transcript raw pointers.
+// Path compression + union by rank gives near-O(1) amortised per operation.
+// ---------------------------------------------------------------------------
+struct DSU {
+    unordered_map<shared_ptr<Transcript>, shared_ptr<Transcript>,
+                  TransPtrHash, TransPtrEqual> parent;
+    unordered_map<shared_ptr<Transcript>, int,
+                  TransPtrHash, TransPtrEqual> rank;
+
+    void add(const shared_ptr<Transcript>& t) {
+        if (!parent.count(t)) {
+            parent[t] = t;
+            rank[t]   = 0;
+        }
+    }
+
+    shared_ptr<Transcript> find(const shared_ptr<Transcript>& t) {
+        if (parent[t] != t)
+            parent[t] = find(parent[t]);
+        return parent[t];
+    }
+
+    void unite(const shared_ptr<Transcript>& a, const shared_ptr<Transcript>& b) {
+        auto ra = find(a);
+        auto rb = find(b);
+        if (ra == rb) return;
+        if (rank[ra] < rank[rb]) {
+            parent[ra] = rb;
+        } else if (rank[ra] > rank[rb]) {
+            parent[rb] = ra;
+        } else {
+            parent[rb] = ra;
+            rank[ra]++;
+        }
+    }
+};
+
 class MakeClusters {
 private:
     vector<shared_ptr<Cluster>> clusterList;
@@ -38,6 +76,8 @@ private:
     void checkAgainstCurrentCluster(shared_ptr<Transcript> trans);
 
     void makeSuperClusters(const vector<shared_ptr<ReadList>> &readLists);
+
+    void makeSuperClustersSingleThreaded(const vector<shared_ptr<ReadList>> &readLists);
 
     void processSuperClusters(map<float, string> &distance_thresholds, vector<int> &groups);
 
