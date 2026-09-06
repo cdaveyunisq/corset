@@ -48,31 +48,138 @@ typedef unordered_map<uint64_t, unsigned char> dist_map;
 typedef unordered_map<uint64_t, unsigned char>::iterator dist_iterator;
 #endif
 
-/** class to hold the distance between contigs / clusters **/
+/** Sparse distance matrix backed by two parallel vectors:
+ **   indices_ : sorted flat keys (ntrans*i + j) of non-zero cells
+ **   values_  : distance values where values_[k] corresponds to indices_[k]
+ **
+ ** Lookup: convert (i,j) to flat key, binary-search indices_.
+ **   - Not found → distance is 0 (no link)
+ **   - Found at position k → values_[k] is the distance
+ **
+ ** Parallel write safety: indices_ is pre-allocated from the known set of
+ ** non-zero pairs before any parallel work begins. Each thread owns a unique
+ ** slot index and writes only to values_[k] for its assigned k — no two
+ ** threads ever touch the same element.
+ **/
 class DistanceMatrix {
 private:
-    dist_map dist_;
+    vector<uint64_t> indices_; // sorted flat keys of non-zero cells
+    vector<unsigned char> values_; // values_[k] <-> indices_[k]
     uint64_t ntrans_;
 
 public:
-    void set_size(int ntrans) { ntrans_ = ntrans; };
-    unsigned char get(int i, int j) { return (dist_[ntrans_ * i + j]); } ;
+    void set_size(int ntrans) {
+        ntrans_ = ntrans;
+    }
 
-    void set(int i, int j, int value) {
-        if (value != 0)
-            dist_[ntrans_ * i + j] = value;
-        else
-            remove(i, j);
+    // Pre-allocate both vectors from the known non-zero flat keys.
+    // Keys must be sorted and deduplicated before calling this.
+    // Called once serially before any parallel distance computation.
+    void allocate(const vector<uint64_t> &sorted_keys) {
+        indices_ = sorted_keys;
+        values_.assign(sorted_keys.size(), 0);
+    }
+
+    // Return the slot index for a flat key, or -1 if not present.
+    // O(log P) via binary search on the sorted indices_ vector.
+    int find_slot(uint64_t key) const {
+        auto it = std::lower_bound(indices_.begin(), indices_.end(), key);
+        if (it == indices_.end() || *it != key)
+            return -1;
+        return (int) std::distance(indices_.begin(), it);
+    }
+
+    unsigned char get(int i, int j) const {
+        int slot = find_slot(ntrans_ * i + j);
+        return (slot == -1) ? 0 : values_[slot];
+    }
+
+    // Safe to call concurrently for different (i,j) pairs:
+    // each maps to a unique pre-allocated slot in values_.
+    void set(int i, int j, unsigned char value) {
+        int slot = find_slot(ntrans_ * i + j);
+        if (slot != -1)
+            values_[slot] = value;
+    }
+
+    // Direct slot write — used during parallel init when the caller
+    // already holds the slot index, avoiding a second binary search.
+    void set_by_slot(int slot, unsigned char value) {
+        values_[slot] = value;
+    }
+
+    bool no_link(int i, int j) const {
+        int slot = find_slot(ntrans_ * i + j);
+        return (slot == -1) || (values_[slot] == 0);
+    }
+
+
+    int get_i(uint64_t key) const { return (int) (key / ntrans_); }
+    int get_j(uint64_t key) const { return (int) (key % ntrans_); }
+
+
+    // Iteration over non-zero entries — used by find_next_pair.
+    // Walks values_ directly; skips zeros.
+    struct Entry {
+        uint64_t first;
+        unsigned char second;
     };
-    bool no_link(int i, int j) { return (dist_.find(ntrans_ * i + j) == dist_.end()); };
-    int get_i(uint64_t key) { return (key / ntrans_); };
-    int get_j(uint64_t key) { return (key % ntrans_); };
-    dist_iterator begin() { return (dist_.begin()); };
-    dist_iterator end() { return (dist_.end()); };
 
+    struct Iterator {
+        const DistanceMatrix *mat;
+        int slot;
+
+        void advance() {
+            while (slot < (int) mat->values_.size() && mat->values_[slot] == 0)
+                ++slot;
+        }
+
+        Iterator &operator++() {
+            ++slot;
+            advance();
+            return *this;
+        }
+
+        // Post-increment: return copy of current state, then advance.
+        Iterator operator++(int) {
+            Iterator tmp = *this;
+            ++(*this);
+            return tmp;
+        }
+
+        bool operator!=(const Iterator &o) const { return slot != o.slot; }
+        Entry operator*() const { return {mat->indices_[slot], mat->values_[slot]}; }
+
+        // Allows ditr->first and ditr->second to work in find_next_pair
+        // by returning a temporary Entry by value via a proxy pointer.
+        struct Proxy {
+            Entry e;
+            const Entry *operator->() const { return &e; }
+        };
+
+        Proxy operator->() const { return Proxy{{mat->indices_[slot], mat->values_[slot]}}; }
+    };
+
+
+    Iterator begin() {
+        Iterator it{this, 0};
+        it.advance();
+        return it;
+    }
+
+    Iterator end() { return Iterator{this, (int) values_.size()}; }
+
+    int size() const { return (int) indices_.size(); }
+
+    // Zeroes the value at slot (i,j). The slot remains in indices_ but
+    // values_[slot]==0 is treated as "no link" by get(), no_link() and
+    // the iterator — matching the original sparse map sentinel convention.
+    // Called during merge() to invalidate rows/columns of absorbed transcripts.
     void remove(int i, int j) {
-        dist_.erase(ntrans_ * i + j);
-    };
+        int slot = find_slot(ntrans_ * i + j);
+        if (slot != -1)
+            values_[slot] = 0;
+    }
 };
 
 class Cluster {

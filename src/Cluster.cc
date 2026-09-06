@@ -8,6 +8,8 @@
 #include <math.h>
 #include <iostream>
 #include <fstream>
+#include <thread>
+#include <numeric>
 
 using namespace std;
 
@@ -220,10 +222,9 @@ void Cluster::merge(const int i, const int j) {
 
 
 unsigned char Cluster::find_next_pair(int &max_i, int &max_j) {
-    auto ditr = dist.begin();
     unsigned char max_value = 0;
     //loop through non-zero distances and search for the maximum
-    for (; ditr != dist.end(); ditr++) {
+    for (auto ditr = dist.begin(); ditr != dist.end(); ditr++) {
         if (ditr->second > max_value) {
             max_i = dist.get_i(ditr->first);
             max_j = dist.get_j(ditr->first);
@@ -362,39 +363,80 @@ void Cluster::initialise_matrix() {
     for (int t = 0; t < n_trans(); t++)
         read_group_sizes.at(t).resize(Transcript::samples);
 
-    vector<shared_ptr<Transcript>>::iterator t2;
-    vector<pair<int, int> > non_zero_distance_index;
+    // --- Phase 1 (serial): collect all non-zero (i,j) pairs and flat keys ---
+    vector<pair<int,int>> pairs;    // (i,j) for get_dist calls
+    vector<uint64_t>      flat_keys; // ntrans*i+j, parallel to pairs
+
     for (int r = 0; r < n_reads(); r++) {
         shared_ptr<Read> read = get_read(r);
-        int alignments = read->alignments();
         int sample = read->get_sample();
         for (auto t1 = read->align_begin(); t1 != read->align_end(); t1++) {
             shared_ptr<Transcript> tran1 = get_tran(*t1);
             int i = tran1->pos();
             for (auto t2 = read->align_begin(); t2 != t1; t2++) {
-                //flag the elements in the distance matrix
                 shared_ptr<Transcript> tran2 = get_tran(*t2);
-                int j = tran2->pos(); //which need to be calculated properly.
-                if (j < i)
-                    non_zero_distance_index.push_back(make_pair(i, j));
-                else
-                    non_zero_distance_index.push_back(make_pair(j, i));
+                int j = tran2->pos();
+                if (j > i) std::swap(i, j); // ensure i > j (lower triangle)
+                flat_keys.push_back((uint64_t)n_trans() * i + j);
+                pairs.push_back({i, j});
             }
             read_groups.at(sample).at(i).push_back(r);
-            read_group_sizes.at(i).at(sample) += (read->get_weight());
+            read_group_sizes.at(i).at(sample) += read->get_weight();
         }
     }
-
     groups.resize(n_trans());
     for (int n = 0; n < n_trans(); n++)
         groups.at(n).push_back(n);
 
-    //now set the distances
-    for (int p = 0; p < non_zero_distance_index.size(); p++) {
-        int i = non_zero_distance_index.at(p).first;
-        int j = non_zero_distance_index.at(p).second;
-        dist.set(i, j, get_dist(i, j) * UCHAR_MAX);
+    // Sort and deduplicate flat keys to build the index vector.
+    // Reorder pairs to match so slot k always corresponds to pairs[k].
+    {
+        // argsort by flat key
+        vector<int> order(flat_keys.size());
+        std::iota(order.begin(), order.end(), 0);
+        std::sort(order.begin(), order.end(),
+                  [&](int a, int b){ return flat_keys[a] < flat_keys[b]; });
+
+        vector<uint64_t>   sorted_keys;
+        vector<pair<int,int>> sorted_pairs;
+        sorted_keys.reserve(flat_keys.size());
+        sorted_pairs.reserve(pairs.size());
+
+        for (int o : order) {
+            if (sorted_keys.empty() || flat_keys[o] != sorted_keys.back()) {
+                sorted_keys.push_back(flat_keys[o]);
+                sorted_pairs.push_back(pairs[o]);
+            }
+        }
+
+        // Pre-allocate the two parallel vectors with exactly the non-zero slots.
+        dist.allocate(sorted_keys);
+        pairs = std::move(sorted_pairs);
     }
+
+    // --- Phase 2 (parallel): compute get_dist for each slot ---
+    // Each thread owns unique slot indices via atomic counter.
+    // set_by_slot writes to values_[slot] — no two threads share a slot.
+    const int total    = (int)pairs.size();
+    const int hw       = (int)std::thread::hardware_concurrency();
+    const int nthreads = hw > 1 ? hw : 1;
+
+    std::atomic<int> next_slot{0};
+    auto worker = [&]() {
+        int slot;
+        while ((slot = next_slot.fetch_add(1, std::memory_order_relaxed)) < total) {
+            auto [i, j] = pairs[slot];
+            unsigned char val = static_cast<unsigned char>(get_dist(i, j) * UCHAR_MAX);
+            dist.set_by_slot(slot, val);
+        }
+    };
+
+    vector<std::thread> threads;
+    threads.reserve(nthreads);
+    for (int t = 0; t < nthreads; t++)
+        threads.emplace_back(worker);
+    for (auto &t : threads)
+        t.join();
 };
 
 void Cluster::print_alignments() {
