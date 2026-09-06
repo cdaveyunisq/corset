@@ -57,6 +57,39 @@ struct DSU {
     }
 };
 
+
+class CustomDSU {
+public:
+    std::unordered_map<std::shared_ptr<Transcript>, std::shared_ptr<Transcript>,
+                       TransPtrHash, TransPtrEqual> parent;
+
+    void add(const std::shared_ptr<Transcript>& t) {
+        if (parent.find(t) == parent.end()) {
+            parent[t] = t;
+        }
+    }
+
+    std::shared_ptr<Transcript> find(const std::shared_ptr<Transcript>& t) {
+        if (parent[t] == t) {
+            return t;
+        }
+        // Path compression is still safe to use here because it only flattens the resolved paths
+        return parent[t] = find(parent[t]);
+    }
+
+    // DIRECTIONAL UNION: Force 'b' to merge into 'a's tree, matching the original logic
+    void unite(const std::shared_ptr<Transcript>& a, const std::shared_ptr<Transcript>& b) {
+        auto root_a = find(a);
+        auto root_b = find(b);
+
+        if (root_a != root_b) {
+            // In the original code, 'this_cluster' (b) is merged INTO 'current_cluster' (a)
+            // Therefore, the root of b must now point directly to the root of a.
+            parent[root_b] = root_a;
+        }
+    }
+};
+
 class MakeClusters {
 private:
     vector<shared_ptr<Cluster>> clusterList;

@@ -53,12 +53,17 @@ void MakeClusters::makeSuperClustersSingleThreaded(const vector<shared_ptr<ReadL
     //loop through each read:
     int i = 0;
     unordered_map<string, shared_ptr<Transcript>> transCache {};
+    unordered_set<uint64_t> processed {};
 
     for (int sample = 0; sample < readLists.size(); sample++) {
         const shared_ptr<ReadList>& reads = readLists.at(sample);
         const vector<shared_ptr<Read>> readsVec = reads->getReads();
         for (auto rIt = readsVec.begin(); rIt != readsVec.end(); rIt++) {
             const shared_ptr<Read>& r = *rIt;
+            if (processed.contains(r->getId())) {
+                continue;
+            }
+            processed.insert(r->getId());
             //     if(r->get_weight() >= 0 && distance(tIt,tIt_end) <= 50){
             for (auto tIt = r->align_begin(); tIt != r->align_end(); tIt++) {
                 const string& name = *tIt;
@@ -159,6 +164,7 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList> > &readLi
 
             shared_ptr<Transcript> root;
             auto & alignments = r->getAlignments();
+
             for (auto tIt = alignments.begin(); tIt != alignments.end(); ++tIt) {
                 auto cIt = cache.find(*tIt);
                 if (cIt == cache.end()) continue;
@@ -185,7 +191,7 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList> > &readLi
 
 
     // ── Phase 2 (serial): build DSU and apply all edges ─────────────────────
-    DSU dsu;
+    CustomDSU dsu;
     for (const auto& cache : perSampleCache)
         for (const auto& [name, ptr] : cache)
             dsu.add(ptr);
@@ -245,9 +251,10 @@ MakeClusters::MakeClusters(const vector<shared_ptr<ReadList> > &readLists,
                            vector<int> &groups) {
     //stage 1: process all the reads and looked for shared hits.
     //groups all transcripts which share at least one read
-    //makeSuperClusters(readLists);
 
-    makeSuperClustersSingleThreaded(readLists);
+    makeSuperClusters(readLists);
+
+    //makeSuperClustersSingleThreaded(readLists);
 
     //stage 2: loop over each of the newly created groups (super clusters)
     //and perform the hierarchical clustering
