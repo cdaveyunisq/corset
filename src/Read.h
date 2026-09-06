@@ -27,6 +27,10 @@
 #include <cstdint>
 #include <atomic>
 #include <limits>
+#include <BinaryIO.h>
+#include <unordered_map>
+#include <unordered_set>
+#include <thread>
 
 using namespace std;
 
@@ -156,6 +160,53 @@ public:
         return *this;
     }
 
+    // Binary serialisation — writes all fields needed for reconstruction.
+    // trans_hash is not written — it is recomputed on deserialise().
+    void serialise(std::ostream &out) const {
+        BinaryIO::write_pod(out, id);
+        int32_t w = weight_;
+        int32_t s = static_cast<int32_t>(sample_);
+        BinaryIO::write_pod(out, w);
+        BinaryIO::write_pod(out, s);
+        BinaryIO::write_string_vector(out, transcriptIds_);
+    }
+
+    // Binary deserialisation — restores a Read from a stream.
+    // The original id is restored directly without incrementing next_id.
+    // trans_hash is recomputed after all transcriptIds_ are loaded.
+    // Caller (ReadList::deserialise) must call tran->add_read() for each
+    // transcript name to rebuild Transcript::reads_ back-references.
+    static std::shared_ptr<Read> deserialise(std::istream &in) {
+        int64_t id;
+        BinaryIO::read_pod(in, id);
+        int32_t weight, sample;
+        BinaryIO::read_pod(in, weight);
+        BinaryIO::read_pod(in, sample);
+        std::vector<std::string> tids;
+        BinaryIO::read_string_vector(in, tids);
+
+        // Use the private constructor path — create a default Read then
+        // overwrite its fields. The default constructor increments next_id
+        // which we correct below.
+        auto r = std::make_shared<Read>();
+        r->id            = id;
+        r->weight_       = weight;
+        r->sample_       = static_cast<unsigned char>(sample);
+        r->transcriptIds_ = std::move(tids);
+        r->set_trans_hash();
+
+        // Keep next_id ahead of any restored id to avoid future collisions.
+        int64_t expected = r->id + 1;
+        int64_t current  = ReadId::next_id.load(std::memory_order_relaxed);
+        while (current < expected &&
+               !ReadId::next_id.compare_exchange_weak(
+                   current, expected, std::memory_order_relaxed)) {}
+
+        return r;
+    }
+
+
+
 private:
     vector<std::string> transcriptIds_;
     unsigned char sample_;
@@ -218,6 +269,19 @@ public:
     // Re-point this ReadList to a merged TranscriptList after parallel reading.
     // Must be called before any downstream use when using parallel file loading.
     void rebind_transcript_list(const shared_ptr<TranscriptList> &merged);
+
+    // Binary serialisation — writes the TranscriptList, all compactified Reads,
+    // and read_ids to a single binary file. Must be called after compactify_reads().
+    // Returns false if the file could not be opened or writing failed.
+    bool serialise(const std::string &path) const;
+
+    // Binary deserialisation — restores a ReadList and populates the provided
+    // TranscriptList. read_id_map and trans_hash are rebuilt automatically.
+    // Transcript::reads_ back-references are also rebuilt.
+    // Returns nullptr if the file cannot be read or the header is invalid.
+    static std::shared_ptr<ReadList> deserialise(
+        const std::string &path,
+        const std::shared_ptr<TranscriptList> &trans);
 };
 
 #endif

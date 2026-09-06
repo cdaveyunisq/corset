@@ -122,7 +122,8 @@ add_executable(corset
     src/Cluster.cc
     src/MakeClusters.cc
     src/Read.cc
-    src/Transcript.cc)
+    src/Transcript.cc
+        src/BinaryIO.h)
 
 add_executable(corset_fasta_ID_changer
     src/corset_fasta_ID_changer.cc)

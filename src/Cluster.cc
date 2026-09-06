@@ -420,6 +420,7 @@ void Cluster::initialise_matrix() {
     const int total    = (int)pairs.size();
     const int hw       = (int)std::thread::hardware_concurrency();
     const int nthreads = hw > 1 ? hw : 1;
+    cout << "Initialise Cluster with " << nthreads << " threads" << endl;
 
     std::atomic<int> next_slot{0};
     auto worker = [&]() {
@@ -448,7 +449,7 @@ void Cluster::print_alignments() {
         vector<int> als;
         cout << "cluster=" << get_id() << "\t" << "sample=" << sample;
         for (auto t1 = read->align_begin(); t1 != read->align_end(); t1++) {
-            // TODO: we need to lookup the transcript for the given name.
+            // we need to lookup the transcript for the given name.
             shared_ptr<Transcript> tran1 = get_tran(*t1);
             als.push_back(tran1->pos());
         }

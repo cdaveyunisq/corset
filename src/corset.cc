@@ -60,6 +60,18 @@
 using namespace std;
 
 const string corset_extension = ".corset-reads";
+const string recovery_extension = ".corset-recovery";
+
+// Derive the recovery file path from the input file argument.
+// For a comma-separated list (multi-transcriptome mode) the first filename
+// is used as the base, since the list as a whole represents one sample.
+static string recovery_path_for(const string &file_arg) {
+    // extract the first filename from a possible comma-separated list
+    string first = file_arg.substr(0, file_arg.find(','));
+    // strip any leading directory component
+    string base  = first.substr(first.find_last_of("/\\") + 1);
+    return base + recovery_extension;
+}
 
 // a function to parse a bam file. It required samtools
 // to read it. The alignments are stored in a ReadList object.
@@ -432,6 +444,11 @@ void print_usage() {
             << std::endl;
     std::cout << "\t                  align to more than x contigs. Default: no filtering" << std::endl;
     std::cout << std::endl;
+    std::cout << "\t -R               Enable recovery mode. If a recovery file exists in the current working directory for an input file" << std::endl;
+    std::cout << "\t                  (named <input>.corset-recovery), it will be loaded instead of" << std::endl;
+    std::cout << "\t                  re-reading the input. Recovery files are always written when this" << std::endl;
+    std::cout << "\t                  flag is present." << std::endl;
+    std::cout << std::endl;
     std::cout << "Citation: Nadia M. Davidson and Alicia Oshlack, Corset: enabling differential gene expression " <<
             std::endl;
     std::cout << "          analysis for de novo assembled transcriptomes, Genome Biology 2014, 15:410" << std::endl;
@@ -452,6 +469,7 @@ int main(int argc, char **argv) {
     bool output_reads = false;
     bool stop_after_read = false;
     string input_type = "bam";
+    bool recover = false;
 
     // function pointer to the method to read the bam or corset input files
     shared_ptr<ReadList> (*read_input)(string, const shared_ptr<TranscriptList> &, int) = read_bam_file;
@@ -460,8 +478,14 @@ int main(int argc, char **argv) {
     std::cout << "Running Corset Version " << CORSET_VERSION_STRING << std::endl;
 
     // parse the command line options
-    while ((c = getopt(argc, argv, "f:p:d:n:g:D:Im:r:i:l:x:")) != EOF) {
+    while ((c = getopt(argc, argv, "f:p:d:n:g:D:Im:r:i:l:x:R:")) != EOF) {
         switch (c) {
+            case 'R': {
+                recover = true;
+                std::cout << "Recovery mode enabled — will load existing recovery files where present." << std::endl;
+                params += 1;
+                break;
+            }
             case 'f': {
                 // f=force output to be overwritten?
                 std::string value(optarg);
@@ -717,11 +741,38 @@ int main(int argc, char **argv) {
 
     for (int bam_file = 0; bam_file < smpls; bam_file++) {
         string file_arg = string(argv[params + bam_file]);
+        string rec_path    = recovery_path_for(file_arg);
+        bool   has_recovery = recover && ifstream(rec_path, ios::binary).good();
+
         futures.push_back(std::async(std::launch::async, [=]() -> ReadResult {
             // Each thread owns its own TranscriptList — no sharing, no locks.
             shared_ptr<TranscriptList> privateTrans = make_shared<TranscriptList>();
-            shared_ptr<ReadList> readList = read_input(file_arg, privateTrans, bam_file);
-            return {privateTrans, readList};
+
+            if (has_recovery) {
+                std::cout << "Loading recovery file : " << rec_path << std::endl;
+               shared_ptr<ReadList> readList = ReadList::deserialise(rec_path, privateTrans);
+               if (readList == nullptr) {
+                   // Recovery file is corrupt — fall back to re-reading
+                   std::cerr << "Warning: recovery file " << rec_path
+                             << " could not be loaded — re-reading input." << std::endl;
+                   privateTrans = make_shared<TranscriptList>(); // reset
+                   readList = read_input(file_arg, privateTrans, bam_file);
+               } else {
+                   std::cout << "Recovery loaded for sample " << bam_file << std::endl;
+                   return {privateTrans, readList};
+               }
+            } else {
+                shared_ptr<ReadList> readList = read_input(file_arg, privateTrans, bam_file);
+                if (recover) {
+                    // Serialise the result so future runs can recover from here.
+                    if (!readList->serialise(rec_path)) {
+                        std::cerr << "Warning: could not write recovery file " << rec_path << std::endl;
+                    } else {
+                        std::cout << "Recovery file written : " << rec_path << std::endl;
+                    }
+                }
+                return {privateTrans, readList};
+            }
         }));
     }
 

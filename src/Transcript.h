@@ -24,39 +24,63 @@
 #include <algorithm>
 #include <memory>
 #include <StringSet.h>
+#include <BinaryIO.h>
 
 using namespace std;
 
 class Read;
 
-class Transcript{
-  string name_;
-  int pos_; // used later by Cluster
+class Transcript {
+    string name_;
+    int pos_; // used later by Cluster
     // vector of read ids
-  vector<int64_t> reads_; //temporary vector so we can quickly remove the alignments
-                 //for transcripts with less then min_count hits.
-  //  bool reached_min_counts_;
+    vector<int64_t> reads_; //temporary vector so we can quickly remove the alignments
+    //for transcripts with less then min_count hits.
+    //  bool reached_min_counts_;
 
- public:
-  Transcript(){name_="";};
-  Transcript(string name);
+public:
+    Transcript() { name_ = ""; };
 
-  string get_name(){return name_; } ;
-  void pos(int position){pos_=position;};
-  int pos(){return pos_;};
-  void add_read( const std::shared_ptr<Read>& read );
-  bool reached_min_counts(const std::vector<std::shared_ptr<Read> > &reads);
-  //return reached_min_counts_; };
+    Transcript(string name);
 
-  void remove(const std::vector<std::shared_ptr<Read>>& reads); //remove myself from the reads lists ..
+    string get_name() { return name_; } ;
+    void pos(int position) { pos_ = position; };
+    int pos() { return pos_; };
 
-  static int samples;
-  static int groups;
-  static int min_counts;
-  static int min_reads_for_link;
-  static int max_alignments;
+    void add_read(const std::shared_ptr<Read> &read);
 
-  vector<int64_t> get_reads(){ return reads_ ; } ;
+    bool reached_min_counts(const std::vector<std::shared_ptr<Read> > &reads);
+
+    //return reached_min_counts_; };
+
+    void remove(const std::vector<std::shared_ptr<Read> > &reads); //remove myself from the reads lists ..
+
+    static int samples;
+    static int groups;
+    static int min_counts;
+    static int min_reads_for_link;
+    static int max_alignments;
+
+    vector<int64_t> get_reads() { return reads_; } ;
+
+    // Binary serialisation — writes name and position only.
+    // reads_ is rebuilt during Read deserialisation via add_read().
+    void serialise(std::ostream &out) const {
+        BinaryIO::write_string(out, name_);
+        BinaryIO::write_pod(out, pos_);
+    }
+
+    // Binary deserialisation — restores name and position from stream.
+    // Caller is responsible for inserting into the owning TranscriptList.
+    static std::shared_ptr<Transcript> deserialise(std::istream &in) {
+        std::string name;
+        BinaryIO::read_string(in, name);
+        int pos;
+        BinaryIO::read_pod(in, pos);
+        auto t = std::make_shared<Transcript>(name);
+        t->pos_ = pos;
+        return t;
+    }
 };
 
 typedef StringSet<Transcript> TranscriptList;
