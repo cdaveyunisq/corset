@@ -205,8 +205,11 @@ shared_ptr<Read> ReadList::getRead(int64_t id) {
 
 
 shared_ptr<Transcript> ReadList::getTranscript(string name) {
-    if (transcript_list->get_map().contains(name)) {
-        return transcript_list->get_map()[name];
+    // contains followed by map[key] causes 2 search in the lookup.
+    // use an iterator for one step.
+    auto it = transcript_list->get_map().find(name);
+    if (it != transcript_list->get_map().end()) {
+        return it->second;
     }
     return nullptr;
 }

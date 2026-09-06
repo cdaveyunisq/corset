@@ -52,7 +52,7 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList>> &readLis
     int i = 0;
     for (int sample = 0; sample < readLists.size(); sample++) {
         ReadList reads = *(readLists.at(sample));
-
+        // This is O(nm) how can we optimise this
         for (auto rIt = reads.begin(); rIt != reads.end(); rIt++) {
             shared_ptr<Read> r = *rIt;
             //     if(r->get_weight() >= 0 && distance(tIt,tIt_end) <= 50){

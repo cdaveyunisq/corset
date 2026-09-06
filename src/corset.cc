@@ -69,7 +69,7 @@ static string recovery_path_for(const string &file_arg) {
     // extract the first filename from a possible comma-separated list
     string first = file_arg.substr(0, file_arg.find(','));
     // strip any leading directory component
-    string base  = first.substr(first.find_last_of("/\\") + 1);
+    string base = first.substr(first.find_last_of("/\\") + 1);
     return base + recovery_extension;
 }
 
@@ -444,7 +444,9 @@ void print_usage() {
             << std::endl;
     std::cout << "\t                  align to more than x contigs. Default: no filtering" << std::endl;
     std::cout << std::endl;
-    std::cout << "\t -R               Enable recovery mode. If a recovery file exists in the current working directory for an input file" << std::endl;
+    std::cout <<
+            "\t -R               Enable recovery mode. If a recovery file exists in the current working directory for an input file"
+            << std::endl;
     std::cout << "\t                  (named <input>.corset-recovery), it will be loaded instead of" << std::endl;
     std::cout << "\t                  re-reading the input. Recovery files are always written when this" << std::endl;
     std::cout << "\t                  flag is present." << std::endl;
@@ -747,8 +749,8 @@ int main(int argc, char **argv) {
 
     for (int bam_file = 0; bam_file < smpls; bam_file++) {
         string file_arg = string(argv[params + bam_file]);
-        string rec_path    = recovery_path_for(file_arg);
-        bool   has_recovery = recover && ifstream(rec_path, ios::binary).good();
+        string rec_path = recovery_path_for(file_arg);
+        bool has_recovery = recover && ifstream(rec_path, ios::binary).good();
 
         futures.push_back(std::async(std::launch::async, [=]() -> ReadResult {
             // Each thread owns its own TranscriptList — no sharing, no locks.
@@ -756,17 +758,17 @@ int main(int argc, char **argv) {
 
             if (has_recovery) {
                 std::cout << "Loading recovery file : " << rec_path << std::endl;
-               shared_ptr<ReadList> readList = ReadList::deserialise(rec_path, privateTrans);
-               if (readList == nullptr) {
-                   // Recovery file is corrupt — fall back to re-reading
-                   std::cerr << "Warning: recovery file " << rec_path
-                             << " could not be loaded — re-reading input." << std::endl;
-                   privateTrans = make_shared<TranscriptList>(); // reset
-                   readList = read_input(file_arg, privateTrans, bam_file);
-               } else {
-                   std::cout << "Recovery loaded for sample " << bam_file << std::endl;
-                   return {privateTrans, readList};
-               }
+                shared_ptr<ReadList> readList = ReadList::deserialise(rec_path, privateTrans);
+                if (readList == nullptr) {
+                    // Recovery file is corrupt — fall back to re-reading
+                    std::cerr << "Warning: recovery file " << rec_path
+                            << " could not be loaded — re-reading input." << std::endl;
+                    privateTrans = make_shared<TranscriptList>(); // reset
+                    readList = read_input(file_arg, privateTrans, bam_file);
+                } else {
+                    std::cout << "Recovery loaded for sample " << bam_file << std::endl;
+                    return {privateTrans, readList};
+                }
             } else {
                 shared_ptr<ReadList> readList = read_input(file_arg, privateTrans, bam_file);
                 if (recover) {
@@ -804,12 +806,10 @@ int main(int argc, char **argv) {
     // Rebind each ReadList to the unified tList and populate read_list_map.
     for (int bam_file = 0; bam_file < smpls; bam_file++) {
         rList[bam_file]->rebind_transcript_list(tList);
-
-        for (auto idItr = rList[bam_file]->getReadIds().begin();
-             idItr != rList[bam_file]->getReadIds().end(); ++idItr) {
-            if (!read_list_map.contains(*idItr)) {
-                read_list_map.insert(make_pair(*idItr, rList[bam_file]));
-            }
+        auto readIds = rList[bam_file]->getReadIds();
+        for (auto idItr = readIds.begin();
+             idItr != readIds.end(); idItr++) {
+            read_list_map[(*idItr)] = rList[bam_file];
         }
 
         // This is where we output the read alignment summary file for future runs of corset
