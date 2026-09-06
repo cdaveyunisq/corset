@@ -30,6 +30,7 @@ public:
     };
 
 private:
+    // O(1) lookup as opposed to map
     unordered_map<shared_ptr<Transcript>, shared_ptr<Cluster>, TransPtrHash, TransPtrEqual> transMap;
 
     shared_ptr<pair<shared_ptr<Transcript> const, shared_ptr<Cluster> >> getMapElement(shared_ptr<Transcript> trans);
