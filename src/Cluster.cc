@@ -30,9 +30,7 @@ const string Cluster::cluster_id_prefix_no_reads = "NoReadsCluster-";
 //getter/setter methods
 void Cluster::add_tran(shared_ptr<Transcript> trans) {
     cluster_.push_back(trans);
-    if (!transcript_map.contains(trans->get_name())) {
-        transcript_map.insert(pair<string, shared_ptr<Transcript> >(trans->get_name(), trans));
-    }
+    transcript_map.insert_or_assign(trans->get_name(), trans);
 };
 
 void Cluster::add_read(shared_ptr<Read> read) {

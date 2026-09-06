@@ -19,9 +19,8 @@ void ReadList::add_alignment(string read, string trans, int sample) {
     shared_ptr<Read> r = reads_map->insert(read);
     read_ids.push_back(r->getId());
 
-    if (!read_id_map.contains(r->getId())) {
-        read_id_map.insert(std::make_pair(r->getId(), r));
-    }
+
+    read_id_map.insert_or_assign(r->getId(), r);
     shared_ptr<Transcript> t = transcript_list->insert(trans);
     // don't try to insert an alignment if 1. it already exists or
     // 2. if the transcript ID is not in the TranscriptList.
@@ -44,9 +43,7 @@ void ReadList::add_alignment(vector<string> trans_names, int sample, int weight)
     if (find(read_ids.begin(), read_ids.end(), r->getId()) == read_ids.end()) {
         read_ids.push_back(r->getId());
     }
-    if (!read_id_map.contains(r->getId())) {
-        read_id_map.insert(std::make_pair(r->getId(), r));
-    }
+    read_id_map.insert_or_assign(r->getId(), r);
     // loop over all the transcripts that this read aligns to
     for (auto itrTrans = trans_names.begin(); itrTrans != trans_names.end(); itrTrans++) {
         // find the transcript object with the name
@@ -204,11 +201,12 @@ shared_ptr<Read> ReadList::getRead(int64_t id) {
 }
 
 
-shared_ptr<Transcript> ReadList::getTranscript(string name) {
-    // contains followed by map[key] causes 2 search in the lookup.
-    // use an iterator for one step.
-    auto it = transcript_list->get_map().find(name);
-    if (it != transcript_list->get_map().end()) {
+shared_ptr<Transcript> ReadList::getTranscript(const string& name) const {
+    // contains followed by map[key] causes 2 searches in the lookup.
+    // use an iterator for one searches.
+    const auto& tmap = transcript_list->get_map();
+    auto it = tmap.find(name);
+    if (it != tmap.end()) {
         return it->second;
     }
     return nullptr;

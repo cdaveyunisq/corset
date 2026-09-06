@@ -50,18 +50,30 @@ void MakeClusters::checkAgainstCurrentCluster(shared_ptr<Transcript> trans) {
 void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList>> &readLists) {
     //loop through each read:
     int i = 0;
+    unordered_map<string, shared_ptr<Transcript>> transCache {};
+
     for (int sample = 0; sample < readLists.size(); sample++) {
-        ReadList reads = *(readLists.at(sample));
-        // This is O(nm) how can we optimise this
-        for (auto rIt = reads.begin(); rIt != reads.end(); rIt++) {
-            shared_ptr<Read> r = *rIt;
+        const shared_ptr<ReadList>& reads = readLists.at(sample);
+        const vector<shared_ptr<Read>> readsVec = reads->getReads();
+        for (auto rIt = readsVec.begin(); rIt != readsVec.end(); rIt++) {
+            const shared_ptr<Read>& r = *rIt;
             //     if(r->get_weight() >= 0 && distance(tIt,tIt_end) <= 50){
             for (auto tIt = r->align_begin(); tIt != r->align_end(); tIt++) {
-                string name = *tIt;
-                shared_ptr<Transcript> trans = reads.getTranscript(name);
-                if (trans == nullptr) {
+                const string& name = *tIt;
+
+                if (!transCache.count(name)) {
+                    const shared_ptr<Transcript> trans = reads->getTranscript(name);
+                    if (trans == nullptr) {
+                        continue;
+                    }
+                    transCache[name] = trans;
+                }
+                const auto& item = transCache.find(name);
+                if (item == transCache.end()) {
                     continue;
                 }
+                const shared_ptr<Transcript>& trans = item->second;
+
                 if (tIt == r->align_begin()) {
                     setCurrentCluster(trans);
                     current_cluster->add_read(r);

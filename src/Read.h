@@ -62,10 +62,10 @@ public:
         weight_ = 1;
     };
 
-    Read(const Read& other) : id(other.id),
-        weight_(other.weight_),
-        sample_(other.sample_),
-        transcriptIds_(other.transcriptIds_) {
+    Read(const Read &other) : id(other.id),
+                              weight_(other.weight_),
+                              sample_(other.sample_),
+                              transcriptIds_(other.transcriptIds_) {
         if (id >= ReadId::MAX_ID) {
             throw std::runtime_error("Maximum read ID limit reached during copy.");
         }
@@ -149,7 +149,7 @@ public:
         return id;
     }
 
-    Read& operator=(const Read& other) {
+    Read &operator=(const Read &other) {
         if (this != &other) {
             id = other.id;
             transcriptIds_ = other.transcriptIds_;
@@ -189,23 +189,22 @@ public:
         // overwrite its fields. The default constructor increments next_id
         // which we correct below.
         auto r = std::make_shared<Read>();
-        r->id            = id;
-        r->weight_       = weight;
-        r->sample_       = static_cast<unsigned char>(sample);
+        r->id = id;
+        r->weight_ = weight;
+        r->sample_ = static_cast<unsigned char>(sample);
         r->transcriptIds_ = std::move(tids);
         r->set_trans_hash();
 
         // Keep next_id ahead of any restored id to avoid future collisions.
         int64_t expected = r->id + 1;
-        int64_t current  = ReadId::next_id.load(std::memory_order_relaxed);
+        int64_t current = ReadId::next_id.load(std::memory_order_relaxed);
         while (current < expected &&
                !ReadId::next_id.compare_exchange_weak(
-                   current, expected, std::memory_order_relaxed)) {}
+                   current, expected, std::memory_order_relaxed)) {
+        }
 
         return r;
     }
-
-
 
 private:
     vector<std::string> transcriptIds_;
@@ -220,16 +219,17 @@ private:
 // inserting and accessing reads.
 class ReadList {
 private:
-    std::shared_ptr<StringSet<Transcript>> transcript_list{};
+    std::shared_ptr<StringSet<Transcript> > transcript_list{};
     std::shared_ptr<StringSet<Read> > reads_map{}; // warning this is deleted after the reads are read
     // the StringSet above may be replaced by the internal map for
     // the id value to the read this way a read can be accessed more quickly
     // than iterating over the string set.
-    map<int64_t, shared_ptr<Read>> read_id_map {};
+    map<int64_t, shared_ptr<Read> > read_id_map{};
 
     vector<std::shared_ptr<Read> > reads_vector{};
     // housekeeping for read ids referened by this list.
     vector<int64_t> read_ids{};
+
 public:
     // we need to know all the transcripts before we can build a ReadList.
     ReadList(const std::shared_ptr<TranscriptList> &transcripts) {
@@ -237,7 +237,7 @@ public:
         reads_map = std::make_shared<StringSet<Read> >();
         reads_vector = std::vector<std::shared_ptr<Read> >{};
         read_ids = vector<int64_t>{};
-        read_id_map = map<int64_t, shared_ptr<Read>>{};
+        read_id_map = map<int64_t, shared_ptr<Read> >{};
     };
 
     // add a new alignment into the list
@@ -253,6 +253,10 @@ public:
     // stored as a vector instead. Read IDs are cleared.
     void compactify_reads(shared_ptr<TranscriptList> trans, string outputReadsName = "");
 
+    const vector<std::shared_ptr<Read> > getReads() const {
+        return reads_vector;
+    }
+
     vector<std::shared_ptr<Read> >::iterator begin() { return reads_vector.begin(); };
     vector<std::shared_ptr<Read> >::iterator end() { return reads_vector.end(); };
 
@@ -260,11 +264,11 @@ public:
 
     vector<int64_t> getReadIds();
 
-    map<int64_t, shared_ptr<Read>> getReadIdMap();
+    map<int64_t, shared_ptr<Read> > getReadIdMap();
 
     shared_ptr<Read> getRead(int64_t id);
 
-    shared_ptr<Transcript> getTranscript(string name);
+    shared_ptr<Transcript> getTranscript(const string& name) const;
 
     // Re-point this ReadList to a merged TranscriptList after parallel reading.
     // Must be called before any downstream use when using parallel file loading.

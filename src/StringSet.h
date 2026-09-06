@@ -59,9 +59,9 @@ public:
 
 
 #ifndef UNORDEREDMAP
-    map<string, std::shared_ptr<T> > get_map() { return set_map; }
+    const map<string, std::shared_ptr<T> >& get_map() const  { return set_map; }
 #else
-    unordered_map<string, std::shared_ptr<T> > get_map() { return set_map; }
+    const unordered_map<string, std::shared_ptr<T> >& get_map() const { return set_map; }
 #endif
 
 

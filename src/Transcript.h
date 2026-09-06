@@ -85,4 +85,18 @@ public:
 
 typedef StringSet<Transcript> TranscriptList;
 
+
+// Hash and equality for shared_ptr<Transcript> keyed on the raw pointer address.
+struct TransPtrHash {
+    size_t operator()(const shared_ptr<Transcript>& p) const noexcept {
+        return std::hash<Transcript*>()(p.get());
+    }
+};
+struct TransPtrEqual {
+    bool operator()(const shared_ptr<Transcript>& a, const shared_ptr<Transcript>& b) const noexcept {
+        return a.get() == b.get();
+    }
+};
+
+
 #endif
