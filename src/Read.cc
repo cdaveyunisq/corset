@@ -74,8 +74,9 @@ void ReadList::compactify_reads(shared_ptr<TranscriptList> trans, string outputR
 
     for (auto &[name, read] : flat_reads) {
         int64_t id = read->getId();
-        if (!idMap.contains(id))   idMap.insert({id, read});
-        if (!nameMap.contains(id)) nameMap.insert({id, name});
+        // quicker to assign
+        idMap[id] = read;
+        nameMap[id] = name;
     }
 
     // Parallel sort + hash — each element is independent.

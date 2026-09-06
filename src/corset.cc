@@ -481,9 +481,15 @@ int main(int argc, char **argv) {
     while ((c = getopt(argc, argv, "f:p:d:n:g:D:Im:r:i:l:x:R:")) != EOF) {
         switch (c) {
             case 'R': {
-                recover = true;
+                std::string value(optarg);
+                transform(value.begin(), value.end(), value.begin(), ::tolower);
+                if (value.compare("true") == 0 || value.compare("t") == 0 || value.compare("1") == 0) {
+                    recover = true;
+                } else {
+                    recover = false;
+                }
                 std::cout << "Recovery mode enabled — will load existing recovery files where present." << std::endl;
-                params += 1;
+                params += 2;
                 break;
             }
             case 'f': {
