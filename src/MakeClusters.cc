@@ -10,7 +10,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <MakeClusters.h>
-
+#include <future>
 using namespace std;
 
 
@@ -82,16 +82,27 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList>> &readLis
 void MakeClusters::processSuperClusters(map<float, string> &distance_thresholds, vector<int> &groups) {
     //now do the hierarchical clustering...
     cout << "Starting hierarchial clustering..." << endl;
-    for (int i = 0; clusterList.size() > 0; i++) {
-        if (i % 1000 == 0)
-            cout << float(i) / float(1000) << " thousand clusters done" << endl;
-        shared_ptr<Cluster> back = clusterList.back();
-        back->set_id(i);
-        back->set_sample_groups(groups);
-        back->cluster(distance_thresholds);
-        //    back->print_alignments();
-        clusterList.pop_back();
+
+    // Assign stable IDs before going parallel so each cluster has a unique id_
+    for (int i = 0; i < (int)clusterList.size(); i++) {
+        clusterList[i]->set_id(i);
+        clusterList[i]->set_sample_groups(groups);
     }
+    // Launch one async task per cluster — each cluster() call is self-contained.
+    // output_clusters() inside each call is guarded by Cluster::output_mutex.
+    vector<future<void>> futures;
+    futures.reserve(clusterList.size());
+    for (auto &clust : clusterList) {
+        futures.push_back(std::async(std::launch::async, [&clust, &distance_thresholds]() {
+            clust->cluster(distance_thresholds);
+        }));
+    }
+
+    for (auto &f : futures)
+        f.get(); // propagate any exceptions
+
+    clusterList.clear();
+
 }
 
 MakeClusters::MakeClusters(const vector<shared_ptr<ReadList>> &readLists,
