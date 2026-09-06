@@ -36,60 +36,74 @@
 
 using namespace std;
 
-template <class T > class StringSet {
-  
+
+template<class T>
+class StringSet {
+private:
+    /** The underlying data structure is a map **/
 #ifndef UNORDEREDMAP
-  typedef map< string, std::shared_ptr<T> > mymap;
+    map<string, std::shared_ptr<T> > set_map;
 #else
-  typedef unordered_map< string, std::shared_ptr<T> > mymap;
+    unordered_map<string, std::shared_ptr<T> > set_map;
 #endif
 
- private:
-  /** The underlying data structure is a map **/
-  mymap set_map;
-  
- public:  
-  typedef typename mymap::iterator iterator;
+public:
+#ifndef UNORDEREDMAP
+    typedef typename map<string, std::shared_ptr<T> >::iterator iterator;
 
-  /** Using the key string, look up the pointer to the object. 
-      For example use the read ID to get a Read * or a 
-      transcript ID to get a Transcript *.
-   **/
-  std::shared_ptr<T> find(string & name){
-    iterator it;
-    it = set_map.find(name);
-    if(it!=set_map.end())
-      return it->second;
-    return NULL;
-  };
+#else
+    typedef typename unordered_map<string, std::shared_ptr<T> >::iterator iterator;
 
-  /** Create a new object, insert it and its ID string into the map,
-      then return the pointer to the object. Check to see if the name
-      already exisits and if it does, just return the already exisiting
-      object pointer.
-   **/
-  std::shared_ptr<T> insert(string name){
-    std::shared_ptr<T> look_up = find(name);
-    if(look_up!=NULL)
-      return look_up;
-    else{
-      std::shared_ptr<T> pt = std::make_shared<T>(name);
-      set_map[name]=pt;
-      return pt;
-    }
-  };
-  
-  iterator begin(){
-    return set_map.begin();
-  };
+#endif
 
-  iterator end(){
-    return set_map.end();
-  };
 
-  void clear(){ set_map.clear(); } ;
 
-  int size(){ return set_map.size(); } ;
+#ifndef UNORDEREDMAP
+    map<string, std::shared_ptr<T> > get_map() { return set_map; }
+#else
+    unordered_map<string, std::shared_ptr<T> > get_map() { return set_map; }
+#endif
+
+
+    /** Using the key string, look up the pointer to the object.
+        For example use the read ID to get a Read * or a
+        transcript ID to get a Transcript *.
+     **/
+    std::shared_ptr<T> find(string &name) {
+        iterator it;
+        it = set_map.find(name);
+        if (it != set_map.end())
+            return it->second;
+        return NULL;
+    };
+
+    /** Create a new object, insert it and its ID string into the map,
+        then return the pointer to the object. Check to see if the name
+        already exisits and if it does, just return the already exisiting
+        object pointer.
+     **/
+    std::shared_ptr<T> insert(string name) {
+        std::shared_ptr<T> look_up = find(name);
+        if (look_up != NULL)
+            return look_up;
+        else {
+            std::shared_ptr<T> pt = std::make_shared<T>(name);
+            set_map[name] = pt;
+            return pt;
+        }
+    };
+
+    iterator begin() {
+        return set_map.begin();
+    };
+
+    iterator end() {
+        return set_map.end();
+    };
+
+    void clear() { set_map.clear(); } ;
+
+    int size() { return set_map.size(); } ;
 };
 
 
