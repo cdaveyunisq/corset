@@ -6,6 +6,8 @@
 
 #include <Read.h>
 
+std::atomic<int64_t> ReadId::next_id = 0;
+
 bool Read::has_same_alignments(const std::shared_ptr<Read> &r) {
     if (r->get_trans_hash() != get_trans_hash())
         return false;
@@ -15,6 +17,12 @@ bool Read::has_same_alignments(const std::shared_ptr<Read> &r) {
 void ReadList::add_alignment(string read, string trans, int sample) {
     // find the transcript id if it already exists:
     shared_ptr<Read> r = reads_map->insert(read);
+    if (find(read_ids.begin(), read_ids.end(), r->getId()) == read_ids.end()) {
+        read_ids.push_back(r->getId());
+    }
+    if (!read_id_map.contains(r->getId())) {
+        read_id_map.insert(std::make_pair(r->getId(), r));
+    }
     shared_ptr<Transcript> t = transcript_list->insert(trans);
     // don't try to insert an alignment if 1. it already exists or
     // 2. if the transcript ID is not in the TranscriptList.
@@ -32,7 +40,12 @@ void ReadList::add_alignment(vector<string> trans_names, int sample, int weight)
     reads_vector.push_back(r);
     r->set_sample(sample);
     r->set_weight(weight); // this read represents mutliple reads in the original bam
-
+    if (find(read_ids.begin(), read_ids.end(), r->getId()) == read_ids.end()) {
+        read_ids.push_back(r->getId());
+    }
+    if (!read_id_map.contains(r->getId())) {
+        read_id_map.insert(std::make_pair(r->getId(), r));
+    }
     // loop over all the transcripts that this read aligns to
     for (auto itrTrans = trans_names.begin(); itrTrans != trans_names.end(); itrTrans++) {
         // find the transcript object with the name
@@ -47,7 +60,7 @@ void ReadList::add_alignment(vector<string> trans_names, int sample, int weight)
 // of regular reads. This saves a lot of RAM if reads from multiple
 // samples are processed. The map obect (StringSet) with read IDs
 // is also destroyed to save memory.
-void ReadList::compactify_reads(TranscriptList *trans, string outputReadsName) {
+void ReadList::compactify_reads(shared_ptr<TranscriptList> trans, string outputReadsName) {
     // first lets sort the alignments for each read
     // and calculate a hash value to be used when comparing alignments
     // TODO: is it possible parallise this
@@ -105,12 +118,17 @@ void ReadList::compactify_reads(TranscriptList *trans, string outputReadsName) {
         erase_if(readIds, [&removableReads](int64_t id) {
             return (find(removableReads.begin(), removableReads.end(), id) != removableReads.end());
         });
+        // remove internal references to read ids
+        erase_if(read_ids, [&removableReads](int64_t id) {
+            return (find(removableReads.begin(), removableReads.end(), id) != removableReads.end());
+        });
 
     }
 
     // after changing the shared_ptr we can simply clear reads_map
     // instead of iterating over and delet
     reads_map->clear();
+    read_id_map.clear();
 }
 
 void ReadList::write(string outputReadsName) {
@@ -126,4 +144,26 @@ void ReadList::write(string outputReadsName) {
     }
     readFile.close();
     cout << "Done writing " << outputReadsName << endl;
+}
+
+
+vector<int64_t> ReadList::getReadIds() {
+    return read_ids;
+}
+
+
+map<int64_t, shared_ptr<Read>> ReadList::getReadIdMap() {
+    return read_id_map;
+}
+
+shared_ptr<Read> ReadList::getRead(int64_t id) {
+    return read_id_map.at(id);
+}
+
+
+shared_ptr<Transcript> ReadList::getTranscript(string name) {
+    if (transcript_list->get_map().contains(name)) {
+        return transcript_list->get_map()[name];
+    }
+    return nullptr;
 }

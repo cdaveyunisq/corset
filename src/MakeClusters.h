@@ -20,25 +20,28 @@
 using namespace std;
 
 class MakeClusters {
-   private:
-     vector<Cluster*> clusterList;
-     Cluster * current_cluster;
+private:
+    vector<shared_ptr<Cluster>> clusterList;
+    shared_ptr<Cluster> current_cluster;
 
-   public:
-     void setCurrentCluster(Transcript * trans){ current_cluster=getMapElement(trans)->second; };
+public:
+    void setCurrentCluster(shared_ptr<Transcript> trans) {
+        current_cluster = getMapElement(trans)->second;
+    };
 
- private:
-     map< Transcript *, Cluster * > transMap;
-     pair< Transcript * const, Cluster * > * getMapElement(Transcript * trans);
-     void checkAgainstCurrentCluster(Transcript * trans);
-     void makeSuperClusters(vector<ReadList*> & readLists);
-     void processSuperClusters(map<float,string> & distance_thresholds, vector<int> & groups);
-     
- public:
-     MakeClusters(vector<ReadList*> & readLists, map<float,string> & distance_thresholds, vector<int> & groups);
-     
+private:
+    map<shared_ptr<Transcript>, shared_ptr<Cluster> > transMap;
+
+    shared_ptr<pair<shared_ptr<Transcript> const, shared_ptr<Cluster> >> getMapElement(shared_ptr<Transcript> trans);
+
+    void checkAgainstCurrentCluster(shared_ptr<Transcript> trans);
+
+    void makeSuperClusters(const vector<shared_ptr<ReadList>> &readLists);
+
+    void processSuperClusters(map<float, string> &distance_thresholds, vector<int> &groups);
+
+public:
+    MakeClusters(const vector<shared_ptr<ReadList>> &readLists, map<float, string> &distance_thresholds, vector<int> &groups);
 };
 
 #endif
-
-

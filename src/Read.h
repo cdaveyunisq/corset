@@ -30,23 +30,31 @@
 
 using namespace std;
 
+class ReadId {
+protected:
+    static constexpr int64_t MAX_ID = std::numeric_limits<int64_t>::max();
+
+    static std::atomic<int64_t> next_id;
+    friend class Read;
+};
+
 // Read is a basic container object for a read. It can record the read ID,
 // all the transcript alignments for that read and which sample the read belongs to.
 class Read {
 public:
-    Read() : id(next_id) {
-        if (next_id >= MAX_ID) {
+    Read() : id(ReadId::next_id) {
+        if (ReadId::next_id >= ReadId::MAX_ID) {
             throw std::runtime_error("Maximum number of reads reached");
         }
-        ++next_id;
+        ++ReadId::next_id;
         weight_ = 1;
     };
 
-    Read(string name) : id(next_id) {
-        if (next_id >= MAX_ID) {
+    Read(string name) : id(ReadId::next_id) {
+        if (ReadId::next_id >= ReadId::MAX_ID) {
             throw std::runtime_error("Maximum number of reads reached");
         }
-        ++next_id;
+        ++ReadId::next_id;
         weight_ = 1;
     };
 
@@ -54,7 +62,7 @@ public:
         weight_(other.weight_),
         sample_(other.sample_),
         transcriptIds_(other.transcriptIds_) {
-        if (id >= MAX_ID) {
+        if (id >= ReadId::MAX_ID) {
             throw std::runtime_error("Maximum read ID limit reached during copy.");
         }
         set_trans_hash();
@@ -70,7 +78,7 @@ public:
 
     void add_alignment(const std::shared_ptr<Transcript> &trans) {
         transcriptIds_.push_back(trans->get_name());
-        trans->add_read(this);
+        trans->add_read(make_shared<Read>(*this));
     };
 
     vector<std::string>::iterator align_begin() { return transcriptIds_.begin(); };
@@ -143,7 +151,7 @@ public:
             transcriptIds_ = other.transcriptIds_;
             weight_ = other.weight_;
             sample_ = other.sample_;
-            set_trans_hash();
+            this->set_trans_hash();
         }
         return *this;
     }
@@ -153,9 +161,7 @@ private:
     unsigned char sample_;
     int weight_;
     uintptr_t trans_hash;
-    static constexpr int64_t MAX_ID = std::numeric_limits<int64_t>::max();
 
-    static std::atomic<int64_t> next_id;
     int64_t id;
 };
 
@@ -163,16 +169,24 @@ private:
 // inserting and accessing reads.
 class ReadList {
 private:
-    std::shared_ptr<TranscriptList> transcript_list{};
+    std::shared_ptr<StringSet<Transcript>> transcript_list{};
     std::shared_ptr<StringSet<Read> > reads_map{}; // warning this is deleted after the reads are read
-    vector<std::shared_ptr<Read> > reads_vector{};
+    // the StringSet above may be replaced by the internal map for
+    // the id value to the read this way a read can be accessed more quickly
+    // than iterating over the string set.
+    map<int64_t, shared_ptr<Read>> read_id_map {};
 
+    vector<std::shared_ptr<Read> > reads_vector{};
+    // housekeeping for read ids referened by this list.
+    vector<int64_t> read_ids{};
 public:
     // we need to know all the transcripts before we can build a ReadList.
     ReadList(const std::shared_ptr<TranscriptList> &transcripts) {
         transcript_list = transcripts;
         reads_map = std::make_shared<StringSet<Read> >();
         reads_vector = std::vector<std::shared_ptr<Read> >{};
+        read_ids = vector<int64_t>{};
+        read_id_map = map<int64_t, shared_ptr<Read>>{};
     };
 
     // add a new alignment into the list
@@ -186,12 +200,20 @@ public:
     //"compact reads" with a weight.
     // Also the map object is clear and the reads are
     // stored as a vector instead. Read IDs are cleared.
-    void compactify_reads(TranscriptList *trans, string outputReadsName = "");
+    void compactify_reads(shared_ptr<TranscriptList> trans, string outputReadsName = "");
 
     vector<std::shared_ptr<Read> >::iterator begin() { return reads_vector.begin(); };
     vector<std::shared_ptr<Read> >::iterator end() { return reads_vector.end(); };
 
     void write(string outputReadsName);
+
+    vector<int64_t> getReadIds();
+
+    map<int64_t, shared_ptr<Read>> getReadIdMap();
+
+    shared_ptr<Read> getRead(int64_t id);
+
+    shared_ptr<Transcript> getTranscript(string name);
 };
 
 #endif
