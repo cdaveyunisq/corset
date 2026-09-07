@@ -93,3 +93,31 @@ echo "Running corset_sync in examples/Cx_sitiens_sync $(pwd)"
 ./corset_sync -f true -R true -p Cx_sitiens_sync ../Cx_sitiens_mosquitoes/W6.sorted.bam ../Cx_sitiens_mosquitoes/W9.sorted.bam
 popd
 ```
+
+
+# Testing Parallel execution difference
+
+The resources used on our cluster by the parallel processing method for processing 2 BAM files of about 4Gb each with more than 100 million transcripts:
+
+Note that data was loaded from the binary recovery files.
+
+```
+Job Id: 875885
+    Job_Name = test_clust_par.pbs
+    resources_used.cpupercent = 387
+    resources_used.cput = 00:20:18
+    resources_used.mem = 3193816kb
+    resources_used.ncpus = 128
+    resources_used.vmem = 11213100kb
+    resources_used.walltime = 00:06:41
+```
+
+The resources used for the same data for the synchronous initialisation method was:
+
+TODO: get the historical walltime as this is will execute overnight.
+```
+Job Id: 875887.hpc-clm-prd-t1
+    Job_Name = test_clust_sync.pbs
+
+```
+

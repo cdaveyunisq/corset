@@ -1,0 +1,14 @@
+#!/bin/bash
+#
+# Run a VNC server on a node
+#
+
+#PBS -P hpcsupport
+#PBS -l ncpus=128
+#PBS -l mem=900gb
+#PBS -l walltime=72:00:00
+#PBS -l host=n006
+
+cd ~/corset/
+./test_clust_sync.sh
+
