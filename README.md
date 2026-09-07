@@ -78,7 +78,7 @@ cp -f *.corset-recovery examples/Cx_sitiens_par
 cp -f build/corset_par examples/Cx_sitiens_par
 pushd examples/Cx_sitiens_par
 echo "Running corset_par in examples/Cx_sitiens_par $(pwd)"
-./corset_par -f true -R true -p Cx_sitiens_par ../Cx_sitiens_mosquitoes/W6.sorted.bam ../Cx_sitiens_mosquitoes/W9.sorted.bam
+./corset_par -f true -R true -p Cx_sitiens_par ../Cx_sitiens_mosquitoes/W6.sorted.bam ../Cx_sitiens_mosquitoes/W9.sorted.bam &>> corset_par.log
 popd
  
 ```
@@ -92,7 +92,7 @@ cp -f *.corset-recovery examples/Cx_sitiens_sync
 cp -f build/corset_sync examples/Cx_sitiens_sync
 pushd examples/Cx_sitiens_sync
 echo "Running corset_sync in examples/Cx_sitiens_sync $(pwd)"
-./corset_sync -f true -R true -p Cx_sitiens_sync ../Cx_sitiens_mosquitoes/W6.sorted.bam ../Cx_sitiens_mosquitoes/W9.sorted.bam
+./corset_sync -f true -R true -p Cx_sitiens_sync ../Cx_sitiens_mosquitoes/W6.sorted.bam ../Cx_sitiens_mosquitoes/W9.sorted.bam &>> corset_sync.log
 popd
 ```
 
