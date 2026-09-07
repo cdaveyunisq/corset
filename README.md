@@ -99,7 +99,7 @@ popd
 
 # Testing Parallel Speedup
 
-The resources used on our cluster by the parallel processing method for processing 2 BAM files of about 4Gb each with more than 100 million transcripts:
+The resources used on the UniSQ HPC cluster by the parallel processing method for processing 2 BAM files of about 4Gb each with more than 100 million transcripts:
 
 Note that data was loaded from the binary recovery files.
 
