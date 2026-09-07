@@ -32,7 +32,7 @@ Libraries needed are:
 - LibLZMA::LibLZMA
 - pthread
 
-htslib is automatically cloned and compiled statically during the build process and statically linked into the corset binary.
+libdeflate and htslib are automatically cloned and compiled statically during the build process and statically linked into the corset binary.
 
 Building is achieved with the build script:
 
