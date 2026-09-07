@@ -50,6 +50,7 @@ public:
         if (ReadId::next_id >= ReadId::MAX_ID) {
             throw std::runtime_error("Maximum number of reads reached");
         }
+        is_processed.store(false, std::memory_order_relaxed);
         ++ReadId::next_id;
         weight_ = 1;
     };
@@ -58,6 +59,7 @@ public:
         if (ReadId::next_id >= ReadId::MAX_ID) {
             throw std::runtime_error("Maximum number of reads reached");
         }
+        is_processed.store(false, std::memory_order_relaxed);
         ++ReadId::next_id;
         weight_ = 1;
     };
@@ -69,9 +71,25 @@ public:
         if (id >= ReadId::MAX_ID) {
             throw std::runtime_error("Maximum read ID limit reached during copy.");
         }
+        is_processed.store(other.is_processed.load(std::memory_order_relaxed), std::memory_order_relaxed);
         set_trans_hash();
     }
 
+    bool try_mark_processed() {
+        bool expected = false;
+        // compare_exchange_strong acts as an all-in-one check and update:
+        // "If is_processed is currently false (expected), change it to true and return true.
+        //  If it is already true, do nothing and return false."
+        return is_processed.compare_exchange_strong(expected, true, std::memory_order_relaxed);
+    }
+
+    void set_processed(bool processed) {
+        is_processed.store(processed, std::memory_order_relaxed);
+    }
+
+    bool was_processed() const {
+        return is_processed.load(std::memory_order_relaxed);
+    }
 
     // dummy for StringSet
     void set_sample(int sample) { sample_ = sample; };
@@ -215,6 +233,8 @@ private:
     uintptr_t trans_hash;
 
     int64_t id;
+    // flag for concurrent processing
+    atomic<bool> is_processed {false};
 };
 
 // ReadList is a container for a set of Reads and contains functions for

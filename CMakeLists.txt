@@ -39,6 +39,11 @@ configure_file(
 
 # Include the External Project module to manage non-CMake dependencies
 include(ExternalProject)
+include(FetchContent)
+
+# Force libdeflate to compile as a STATIC library archive
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(LIBDEFLATE_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # ---------------------------------------------------------------------------
 # 1. System Requirements Check (Samtools / HTSlib prerequisites)
@@ -48,22 +53,23 @@ find_package(BZip2 REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(CURL REQUIRED) 
 find_package(OpenSSL REQUIRED)
-find_package(libdeflate REQUIRED)
 
-# First attempt: Try to find a modern system-provided CMake configuration module
-find_package(libdeflate CONFIG QUIET)
 
-# Second attempt: If the native module is absent, build it out using PkgConfig
-if(NOT TARGET libdeflate::libdeflate)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(DEFLATE REQUIRED IMPORTED_TARGET GLOBAL libdeflate)
 
-    # Bridge the PkgConfig mapping to match the missing target name
+FetchContent_Declare(
+    libdeflate
+    GIT_REPOSITORY "https://github.com/ebiggers/libdeflate.git"
+    GIT_TAG        "v1.26"
+)
+
+# This downloads libdeflate and sets up the static "libdeflate" target
+FetchContent_MakeAvailable(libdeflate)
+FetchContent_GetProperties(libdeflate)
+# Create an alias so your existing "libdeflate::libdeflate" links perfectly
+if(TARGET libdeflate_static AND NOT TARGET libdeflate::libdeflate)
     add_library(libdeflate::libdeflate INTERFACE IMPORTED GLOBAL)
-    target_link_libraries(libdeflate::libdeflate INTERFACE PkgConfig::DEFLATE)
+    target_link_libraries(libdeflate::libdeflate INTERFACE libdeflate_static)
 endif()
-
-
 # 2. Path Directives
 set(DEPS_DIR "${CMAKE_BINARY_DIR}/thirdparty")
 set(INSTALL_PREFIX "${DEPS_DIR}/install")
@@ -73,6 +79,11 @@ set(INSTALL_PREFIX "${DEPS_DIR}/install")
 file(MAKE_DIRECTORY "${INSTALL_PREFIX}/include")
 file(MAKE_DIRECTORY "${INSTALL_PREFIX}/include/htslib")
 file(MAKE_DIRECTORY "${INSTALL_PREFIX}/lib")
+
+# Point HTSlib to look inside FetchContent's output workspace
+set(LOCAL_DEFLATE_INCLUDE "${libdeflate_SOURCE_DIR}")
+set(LOCAL_DEFLATE_LIBDIR  "${libdeflate_BINARY_DIR}")
+
 # ---------------------------------------------------------------------------
 # 3. External Git Project Declarations (Tag 1.24)
 # ---------------------------------------------------------------------------
@@ -85,9 +96,10 @@ ExternalProject_Add(htslib_git_target
    
     # FIX: Native list-wrapping forces the host shell to correctly execute the processing pipeline
     #CONFIGURE_COMMAND   /bin/sh -c "autoheader && autoconf && ./configure --prefix=${INSTALL_PREFIX} --disable-plugins"
-    CONFIGURE_COMMAND   /bin/sh -c "autoreconf -i && ./configure --prefix=${INSTALL_PREFIX} --disable-plugins"
+    CONFIGURE_COMMAND   /bin/sh -c "autoreconf -i && ./configure --prefix=${INSTALL_PREFIX} --disable-plugins --with-libdeflate"
     
-    BUILD_COMMAND       make lib-static
+    BUILD_COMMAND       make lib-static CPPFLAGS=-I${LOCAL_DEFLATE_INCLUDE} LDFLAGS=-L${LOCAL_DEFLATE_LIBDIR}
+
     INSTALL_COMMAND     make install
     
     BUILD_IN_SOURCE     1
@@ -98,6 +110,9 @@ ExternalProject_Add(htslib_git_target
     # CLION NINJA FIX: Tell the Ninja generator exactly what this step produces
     BUILD_BYPRODUCTS    "${HTSLIB_STATIC_LIB}"
 )
+
+
+add_dependencies(htslib_git_target libdeflate_static)
 
 
 # 5. Export HTSlib Interface Targets to Corset
@@ -117,24 +132,33 @@ add_dependencies(HtslibStatic htslib_git_target)
 # 4. Define Your Corset Executable
 # ---------------------------------------------------------------------------
 # Explicitly track your new partitioned/incremental source files
-add_executable(corset 
+add_executable(corset_par
     src/corset.cc
     src/Cluster.cc
     src/MakeClusters.cc
     src/Read.cc
     src/Transcript.cc
         src/BinaryIO.h)
+        
+add_executable(corset_sync
+    src/corset.cc
+    src/Cluster.cc
+    src/MakeClusters.cc
+    src/Read.cc
+    src/Transcript.cc
+        src/BinaryIO.h )
+target_compile_definitions(corset_sync PRIVATE CLUSTER_SYNC=1)
 
 add_executable(corset_fasta_ID_changer
     src/corset_fasta_ID_changer.cc)
 
-target_include_directories(corset PRIVATE 
+target_include_directories(corset_par PRIVATE 
     src
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 
 # Link your executable against HTSlib and core system threading/compression architectures
-target_link_libraries(corset PRIVATE 
+target_link_libraries(corset_par PRIVATE 
     HtslibStatic
     CURL::libcurl
     OpenSSL::Crypto 
@@ -150,8 +174,29 @@ target_include_directories(corset_fasta_ID_changer PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}/generated"
 )
 
+
 # Even if this utility doesn't read BAMs, linking it to the same group is safe,
 # or you can streamline it to only use standard libraries if it is pure C++
 target_link_libraries(corset_fasta_ID_changer PRIVATE 
     pthread
 )
+
+
+
+target_include_directories(corset_sync PRIVATE 
+    src
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
+
+# Link your executable against HTSlib and core system threading/compression architectures
+target_link_libraries(corset_sync PRIVATE 
+    HtslibStatic
+    CURL::libcurl
+    OpenSSL::Crypto 
+    ZLIB::ZLIB
+    BZip2::BZip2
+    LibLZMA::LibLZMA
+    libdeflate::libdeflate
+    pthread
+)
+

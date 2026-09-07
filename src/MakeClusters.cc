@@ -165,13 +165,20 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList> > &readLi
             shared_ptr<Transcript> root;
             auto & alignments = r->getAlignments();
 
+            // set the reader as processed and ignore it if it was already processed
+            // only one thread will successfully process this read.
+            if (!r->try_mark_processed()) {
+                continue;
+            }
+            
             for (auto tIt = alignments.begin(); tIt != alignments.end(); ++tIt) {
                 auto cIt = cache.find(*tIt);
                 if (cIt == cache.end()) continue;
                 // deliberately need to copy the shared pointer at this stage
                 // otherwise the root object ends up empty in later iter
                 shared_ptr<Transcript> t = cIt->second;
-                if (!root) {
+                // make it more obvious that the very first alignment determines the root transcript
+                if (tIt == alignments.begin()) {
                     root = t;
                     myAssignments.push_back({entry.read, root});
                 } else {
@@ -179,6 +186,7 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList> > &readLi
                         myEdges.push_back({root, t});
                     }
                 }
+                
             }
         }
     };
@@ -251,11 +259,11 @@ MakeClusters::MakeClusters(const vector<shared_ptr<ReadList> > &readLists,
                            vector<int> &groups) {
     //stage 1: process all the reads and looked for shared hits.
     //groups all transcripts which share at least one read
-
+#ifdef CLUSTER_SYNC 
+    makeSuperClustersSingleThreaded(readLists);
+#else
     makeSuperClusters(readLists);
-
-    //makeSuperClustersSingleThreaded(readLists);
-
+#endif
     //stage 2: loop over each of the newly created groups (super clusters)
     //and perform the hierarchical clustering
     processSuperClusters(distance_thresholds, groups);

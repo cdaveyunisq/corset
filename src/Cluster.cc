@@ -418,7 +418,6 @@ void Cluster::initialise_matrix() {
     const int total    = (int)pairs.size();
     const int hw       = (int)std::thread::hardware_concurrency();
     const int nthreads = hw > 1 ? hw : 1;
-    cout << "Initialise Cluster with " << nthreads << " threads" << endl;
 
     std::atomic<int> next_slot{0};
     auto worker = [&]() {
