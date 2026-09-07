@@ -52,7 +52,7 @@ Resulting binaries are located in the build directory:
     - the original version of the fasta ID changer.
 
 - build/corset_par
-    - This version applies a parallel cluster initialisation method which differs from the original, it uses a "distributed set union" algorithm to form the initial clusters.
+    - This version applies a parallel cluster initialisation method which differs from the original, it uses a parallel [disjoint set union](https://en.wikipedia.org/wiki/Disjoint-set_data_structure) algorithm to form the initial clusters.
     - It parallelises the distance calculation in each individual cluster for a small speedup.
 
 - build/corset_sync
