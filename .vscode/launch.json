@@ -27,7 +27,7 @@
             "name": "Debug BAM Parallel",
             "type": "cppdbg",
             "request": "launch",
-            "program": "build/corset_par",
+            "program": "${command:cmake.launchTargetPath}",
             "args": ["-f", "true", "-R", "true", "-p", "examples/Cx_sitiens", "examples/Cx_sitiens_mosquitoes/W6.sorted.bam"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

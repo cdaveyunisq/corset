@@ -203,6 +203,8 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList> > &readLi
         for (const auto& [name, ptr] : cache)
             dsu.add(ptr);
 
+    // for any connected component - an edge between node a and node b
+    // unite the nodes in the DSU by finding the node a, and assigning it as the parent of node b. 
     for (auto& threadEdges : perThreadEdges)
         for (auto& e : threadEdges)
             dsu.unite(e.a, e.b);
@@ -210,13 +212,13 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList> > &readLi
     // ── Phase 3 (serial): build clusterList from DSU components ─────────────
     unordered_map<shared_ptr<Transcript>, shared_ptr<Transcript>,
                   TransPtrHash, TransPtrEqual> resolvedRoot;
-
+    // assign each parent child pair to the resolved root collection.
     for (auto& [t, p] : dsu.parent)
         resolvedRoot[t] = dsu.find(t);
 
     unordered_map<shared_ptr<Transcript>, shared_ptr<Cluster>,
                   TransPtrHash, TransPtrEqual> rootToCluster;
-
+    // add each transcript to its corresponding cluster based on the resolved root.
     for (auto& [t, root] : resolvedRoot) {
         if (!rootToCluster.count(root)) {
             rootToCluster[root] = make_shared<Cluster>();
