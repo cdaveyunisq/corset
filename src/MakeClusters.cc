@@ -53,17 +53,16 @@ void MakeClusters::makeSuperClustersSingleThreaded(const vector<shared_ptr<ReadL
     //loop through each read:
     int i = 0;
     unordered_map<string, shared_ptr<Transcript>> transCache {};
-    unordered_set<uint64_t> processed {};
-
+    
     for (int sample = 0; sample < readLists.size(); sample++) {
         const shared_ptr<ReadList>& reads = readLists.at(sample);
         const vector<shared_ptr<Read>> readsVec = reads->getReads();
         for (auto rIt = readsVec.begin(); rIt != readsVec.end(); rIt++) {
             const shared_ptr<Read>& r = *rIt;
-            if (processed.contains(r->getId())) {
+            // continue of the Read is already processed
+            if (!r->try_mark_processed()) {
                 continue;
             }
-            processed.insert(r->getId());
             //     if(r->get_weight() >= 0 && distance(tIt,tIt_end) <= 50){
             for (auto tIt = r->align_begin(); tIt != r->align_end(); tIt++) {
                 const string& name = *tIt;
@@ -236,7 +235,7 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList> > &readLi
         }
     }
 
-    cout << clusterList.size() << " super clusters formed." << endl;
+    
 }
 
 void MakeClusters::processSuperClusters(map<float, string> &distance_thresholds, vector<int> &groups) {
@@ -264,6 +263,8 @@ MakeClusters::MakeClusters(const vector<shared_ptr<ReadList> > &readLists,
 #else
     makeSuperClusters(readLists);
 #endif
+    cout << clusterList.size() << " super clusters formed." << endl;
+    
     //stage 2: loop over each of the newly created groups (super clusters)
     //and perform the hierarchical clustering
     processSuperClusters(distance_thresholds, groups);

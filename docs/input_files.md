@@ -14,6 +14,13 @@ The corset program supports several formats:
 - FASTA file format
     - https://en.wikipedia.org/wiki/FASTA_format
 
+# Original example program:
+
+```
+corset -f true -p Cx_sitiens U10.k10.sorted.bam U1.k10.sorted.bam U2.k10.sorted.bam U3.k10.sorted.bam U4.k10.sorted.bam U5.k10.sorted.bam U8.k10.sorted.bam U9.k10.sorted.bam W10.k10.sorted.bam W1.k10.sorted.bam W2.k10.sorted.bam W3.k10.sorted.bam W4.k10.sorted.bam W5.k10.sorted.bam W6.k10.sorted.bam W7.k10.sorted.bam W8.k10.sorted.bam W9.k10.sorted.bam
+```
+
+
 # How inputs are normalised.
 
 Inputs are read in the main corset.cc file.
