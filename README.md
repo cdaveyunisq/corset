@@ -48,6 +48,48 @@ cmake --build .
 ```
 
 Resulting binaries are located in the build directory:
-
-- build/corset
 - build/corset_fasta_ID_changer
+    - the original version of the fasta ID changer.
+
+- build/corset_par
+    - This version applies a parallel cluster initialisation method which differs from the original, it uses a "distributed set union" algorithm to form the initial clusters. I am not sure if its results are consistent with the original algorithm or not and it needs testing.
+    - It parallelises the distance calculation in each individual cluster for a small speedup.
+
+- build/corset_sync
+    - This version uses the synchronous cluster initialisation, but changes the data structures for faster data structure internally for O(1) access in reads.
+
+
+
+Both versions read input files in parallel and will write the processed input file after compaction to binary recovery files for fast startup if the process is interrupted if the recovery switch "-R true" is specified.
+ 
+For example the following includes a -R true switch, after reading the data it will write a file into its current working directory with the extension "".corset-recovery" if the process has read and compacted the entire file, and the "-R true" switch is set, it will look for the files having the same original name with the additional extension "corset-recovery" from its current working directory which in the example below is ~/test_corset_par. This means the process can be restarted and if the corset-recovery files already exist it will read the transcript and reads from the binary recovery file, instead of processing the entire bam file again. Reading from the recovery file is very fast (the compaction method was the bottleneck in this case). 
+ 
+I am still debugging the corset_par version in comparison to corset_sync, the corset_par version I think is not quite right, but if I can get the DSU algorithm right, it will be a magnitude faster than corset_sync. However, corset_sync should still be a little faster than the default corset, and it has the ability to recover after a restart and load data more quickly if it has already read and compacted the BAM input files.
+ 
+Example usage below:
+
+
+```
+#!/bin/bash
+mkdir -p examples/Cx_sitiens_par
+cp -f *.corset-recovery examples/Cx_sitiens_par
+cp -f build/corset_par examples/Cx_sitiens_par
+pushd examples/Cx_sitiens_par
+echo "Running corset_par in examples/Cx_sitiens_par $(pwd)"
+./corset_par -f true -R true -p Cx_sitiens_par ../Cx_sitiens_mosquitoes/W6.sorted.bam ../Cx_sitiens_mosquitoes/W9.sorted.bam
+popd
+ 
+```
+
+and for the synchronous version:
+
+```
+#!/bin/bash
+mkdir -p examples/Cx_sitiens_sync
+cp -f *.corset-recovery examples/Cx_sitiens_sync
+cp -f build/corset_sync examples/Cx_sitiens_sync
+pushd examples/Cx_sitiens_sync
+echo "Running corset_sync in examples/Cx_sitiens_sync $(pwd)"
+./corset_sync -f true -R true -p Cx_sitiens_sync ../Cx_sitiens_mosquitoes/W6.sorted.bam ../Cx_sitiens_mosquitoes/W9.sorted.bam
+popd
+```
