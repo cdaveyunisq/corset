@@ -52,11 +52,14 @@ Resulting binaries are located in the build directory:
     - the original version of the fasta ID changer.
 
 - build/corset_par
+    - Parallel reading of input files with serialised binary written after compaction for fast recovery.
     - This version applies a parallel cluster initialisation method which differs from the original, it uses a parallel [disjoint set union](https://en.wikipedia.org/wiki/Disjoint-set_data_structure) algorithm to form the initial clusters.
-    - It parallelises the distance calculation in each individual cluster for a small speedup.
+    - It parallelises the distance calculation within clusters after initialisation for a small speedup (only useful if the cluster population is large).
 
 - build/corset_sync
+    - Parallel reading of input files with serialised binary written after compaction for fast recovery.
     - This version uses the synchronous cluster initialisation, but changes the data structures for faster data structure internally for O(1) access in reads.
+    - It parallelises the distance calculation within clusters after initialisation for a small speedup (only useful if the cluster population is large).
 
 Both versions read input files in parallel and will write the processed input file after compaction to binary recovery files for fast startup if the process is interrupted if the recovery switch "-R true" is specified.
  
