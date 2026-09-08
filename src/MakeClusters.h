@@ -42,6 +42,13 @@ struct DSU {
         return parent[t];
     }
 
+    /**
+     * Each pair presented to unite is an edge in a graph from node 'a' to node 'b'.
+     * The 'unite' function merges the connected components of 'a' and 'b' in the DSU structure.
+     * Therefore it operates only on connected components of the graph.
+     * However rank is much like a measure of the outdegree of 'a' if 'a' has a higher outdegree than 'b'
+     * then we make 'a' the parent of 'b' to maintain a balanced tree.
+     */
     void unite(const shared_ptr<Transcript>& a, const shared_ptr<Transcript>& b) {
         auto ra = find(a);
         auto rb = find(b);

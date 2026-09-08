@@ -147,13 +147,14 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList> > &readLi
 
     vector<vector<Edge> > perThreadEdges(nthreads);
     vector<vector<ReadAssignment> > perThreadAssignments(nthreads);
-
+    vector<unordered_map<shared_ptr<Transcript>, int, TransPtrHash, TransPtrEqual>> perThreadTranscriptCounts(nthreads);
 
     std::atomic<int> next{0};
 
     auto worker = [&](int tid) {
         auto& myEdges       = perThreadEdges[tid];
         auto& myAssignments = perThreadAssignments[tid];
+        auto& myCounts      = perThreadTranscriptCounts[tid]; 
 
         int idx;
         while ((idx = next.fetch_add(1, std::memory_order_relaxed)) < totalReads) {
@@ -176,6 +177,8 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList> > &readLi
                 // deliberately need to copy the shared pointer at this stage
                 // otherwise the root object ends up empty in later iter
                 shared_ptr<Transcript> t = cIt->second;
+                // record the transcript count for this thread
+                myCounts[t]++;
                 // make it more obvious that the very first alignment determines the root transcript
                 if (tIt == alignments.begin()) {
                     root = t;
@@ -196,12 +199,30 @@ void MakeClusters::makeSuperClusters(const vector<shared_ptr<ReadList> > &readLi
         threads.emplace_back(worker, t);
     for (auto& t : threads) t.join();
 
+    // combine transcript counts from all threads
+    unordered_map<shared_ptr<Transcript>, int, TransPtrHash, TransPtrEqual> globalTranscriptCounts;
+    for (const auto& threadCounts : perThreadTranscriptCounts) {
+        for (const auto& [t, count] : threadCounts) {
+            globalTranscriptCounts[t] += count;
+        }
+    }
+
 
     // ── Phase 2 (serial): build DSU and apply all edges ─────────────────────
-    CustomDSU dsu;
-    for (const auto& cache : perSampleCache)
-        for (const auto& [name, ptr] : cache)
-            dsu.add(ptr);
+    //CustomDSU dsu;
+    
+    DSU dsu;
+
+    for (const auto& cache : perSampleCache) {
+        for (const auto& [name, ptr] : cache) {   
+            // check that we have at least counted the transcript.
+            // some transcripts may exist with 0 reads we skip those.
+            auto countIt = globalTranscriptCounts.find(ptr);
+            if (countIt != globalTranscriptCounts.end()) {
+                dsu.add(ptr);
+            }
+        }
+    }
 
     // for any connected component - an edge between node a and node b
     // unite the nodes in the DSU by finding the node a, and assigning it as the parent of node b. 
