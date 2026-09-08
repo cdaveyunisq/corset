@@ -104,7 +104,7 @@ popd
 
 The resources used on the UniSQ HPC cluster by the parallel processing method for processing 2 BAM files of about 4Gb each with more than 100 million transcripts:
 
-Note that data was loaded from the binary recovery files.
+Note that data was loaded from the binary recovery files therefore isolating the comparison to the differences in cluster initialisation.
 
 ```
 Job Id: 875885
