@@ -1,14 +1,23 @@
-Corset is a command-line program to go from a de novo transcriptome assembly to gene-level counts. Our software takes a set of reads that have been multi-mapped to the transcriptome (where multiple alignments per read were reported) and hierarchically clusters the transcripts based on the proportion of shared reads and expression patterns. It will report the clusters and gene-level counts for each sample, which are easily tested for differential expression with count based tools such as edgeR and DESeq.
+Corset is a command-line program to go from a de novo transcriptome assembly to gene-level counts. This software takes a set of reads that have been multi-mapped to the transcriptome (where multiple alignments per read were reported) and hierarchically clusters the transcripts based on the proportion of shared reads and expression patterns. It will report the clusters and gene-level counts for each sample, which are easily tested for differential expression with count based tools such as edgeR and DESeq.
 
-See our [wiki](https://github.com/Oshlack/Corset/wiki) for downloads and instructions.
+See the original project wiki at: [wiki](https://github.com/Oshlack/Corset/wiki) for downloads and instructions.
 
 
 ## Changes
 
 This branch is intended to modify the corset library to:
 
-- use cmake to build the corset library and htslib dependency. Update corset to use htslib 1.24
-- incrementally build clusters to enable processes to be stopped and continue from where they previously left off.
+- use cmake to build the corset library and htslib and deflate dependencies. Update corset to use htslib 1.24
+- parameterise htslib with number of available hardware cores to allow htslib to use threading when reading BAM files
+- read input files in parallel and run compaction in a worker pool. 
+- save recovery files for each input file after compaction completes, this allows very fast startup if the process is interrupted and needs to be restarted.
+- initialise the clusters in parallel
+- perform distance calculations in parallel - only effective for large cluster populations.
+
+
+After the changes a dramatic speedup is evident, especially in clustering.
+Loading from the saved recovery files also makes the ability to repeat the process by incrementally adding other files if required for different experiments.
+
 
 ## Why incrementally build clusters?
 
@@ -71,7 +80,13 @@ However, corset_sync should still be a little faster than the default corset as 
 
 Both have the ability to recover after a restart and load data more quickly after having saved the compacted data structures after reading the input files.
  
-Example usage below:
+# Example usage:
+
+Note on our HPC we use a modules environment, this program depends on libbz2 so it needs to be loaded into the environment using the command:
+
+```
+module load bzip2/1.0.8-gcc-p2k
+```
 
 
 ```
@@ -99,6 +114,27 @@ echo "Running corset_sync in examples/Cx_sitiens_sync $(pwd)"
 popd
 ```
 
+An example pbs job script can be built as follows:
+
+```
+#!/bin/bash
+#
+# Run a VNC server on a node
+#
+
+#PBS -P MyProjectName
+#PBS -l ncpus=128
+#PBS -l mem=900gb
+#PBS -l walltime=72:00:00
+#PBS -l host=targetHost
+
+cd ~/corset/
+./test_clust_par.sh
+
+```
+
+The host parameter is optional, but having the ability to see which nodes are busy and which are not, (```pbsnodes -aSj```) its possible 
+to target a node with plenty of free resources.
 
 # Testing Parallel Speedup
 
