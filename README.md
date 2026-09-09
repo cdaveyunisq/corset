@@ -119,7 +119,7 @@ An example pbs job script can be built as follows:
 ```
 #!/bin/bash
 #
-# Run a VNC server on a node
+# Run corset_par
 #
 
 #PBS -P MyProjectName
