@@ -156,7 +156,7 @@ Job Id: 875885
 The resources used for the same data for the synchronous initialisation method was:
 
 ```
-Job Id: 875887.hpc-clm-prd-t1
+Job Id: 875887
     Job_Name = test_clust_sync.pbs
     resources_used.cpupercent = 297
     resources_used.cput = 03:18:18
